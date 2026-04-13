@@ -6,7 +6,7 @@
   "scripts": {
     "build": "sam validate --lint && sam build --cached --parallel",
     "deploy": "sam deploy --no-confirm-changeset",
-    "lambda": "sam local start-api --warm-containers EAGER",
+    "lambda": "sam local start-api --warm-containers EAGER --env-vars env.json",
     "delete": "aws cloudformation delete-stack --stack-name assessly-backend",
     "fetch-env": "bash scripts/fetch-env.sh",
     "prisma:generate": "prisma generate",
