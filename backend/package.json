@@ -8,6 +8,7 @@
     "deploy": "sam deploy --no-confirm-changeset",
     "lambda": "sam local start-api --warm-containers EAGER",
     "delete": "aws cloudformation delete-stack --stack-name assessly-backend",
+    "fetch-env": "bash scripts/fetch-env.sh",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
     "prisma:migrate:deploy": "prisma migrate deploy",
