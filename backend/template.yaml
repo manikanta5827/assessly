@@ -37,6 +37,7 @@ Resources:
       Environment:
         Variables:
           QUEUE_URL: !Ref ProcessQueue
+          DATABASE_URL: !Sub "{{resolve:ssm:/assessly/${Stage}/DATABASE_URL}}"
       Events:
         AnalyzeApi:
           Type: Api
