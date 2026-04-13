@@ -1,0 +1,41 @@
+name: Backend Dev Deploy
+
+on:
+  push:
+    branches: [dev]
+    paths:
+      - "backend/**"
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: backend
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 23
+
+      - name: Install deps
+        run: npm install
+
+      - name: Setup SAM CLI
+        uses: aws-actions/setup-sam@v2
+
+      # - name: Configure AWS creds
+      #   uses: aws-actions/configure-aws-credentials@v4
+      #   with:
+      #     aws-region: ap-south-1
+      #     role-to-assume: ${{ secrets.AWS_ROLE_DEV }}
+
+      # - name: Build SAM
+      #   run: sam build
+
+      # - name: Deploy SAM (dev)
+      #   run: sam deploy --config-env dev --no-confirm-changeset

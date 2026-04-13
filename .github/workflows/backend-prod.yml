@@ -1,0 +1,35 @@
+name: Backend Prod Deploy
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "backend/**"
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: backend
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 23
+
+      - run: npm install
+
+      - uses: aws-actions/setup-sam@v2
+
+      # - uses: aws-actions/configure-aws-credentials@v4
+      #   with:
+      #     aws-region: ap-south-1
+      #     role-to-assume: ${{ secrets.AWS_ROLE_PROD }}
+
+      # - run: sam build
+
+      # - run: sam deploy --config-env prod --no-confirm-changeset

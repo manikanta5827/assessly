@@ -1,0 +1,33 @@
+{
+  "name": "assessly",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "prepare": "husky",
+    "lint:backend": "npm run lint --prefix backend",
+    "typecheck:backend": "npm run typecheck --prefix backend",
+    "build:backend": "cd backend && sam build --cached --parallel --use-container --skip-pull-image",
+    "build:frontend": "npm run build --prefix frontend",
+    "lint:frontend": "npm run lint --prefix frontend",
+    "typecheck:frontend": "npm run typecheck --prefix frontend"
+  },
+  "devDependencies": {
+    "@commitlint/cli": "^20.5.0",
+    "@commitlint/config-conventional": "^20.5.0",
+    "husky": "^9.1.7",
+    "lint-staged": "^16.4.0"
+  },
+  "lint-staged": {
+    "backend/src/**/*.{ts,js}": [
+      "npm run lint:fix --prefix backend",
+      "bash -c 'npm run typecheck --prefix backend'"
+    ],
+    "backend/template.yaml": [
+      "sam validate --lint -t"
+    ],
+    "frontend/src/**/*.{ts,tsx,js,jsx}": [
+      "npm run lint --prefix frontend",
+      "bash -c 'npm run typecheck --prefix frontend'"
+    ]
+  }
+}
