@@ -68,12 +68,20 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
       throw new Error('QUEUE_URL environment variable not set');
     }
 
-    await sqsClient.send(
-      new SendMessageCommand({
-        QueueUrl: queueUrl,
-        MessageBody: JSON.stringify({ assessmentId: assessment.id }),
-      })
-    );
+    try {
+      await sqsClient.send(
+        new SendMessageCommand({
+          QueueUrl: queueUrl,
+          MessageBody: JSON.stringify({ assessmentId: assessment.id }),
+        })
+      );
+    } catch (sqsError) {
+      if (process.env.AWS_SAM_LOCAL) {
+        console.warn('SQS send failed locally (this is expected):', sqsError);
+      } else {
+        throw sqsError;
+      }
+    }
 
     // 4. Update IP Tracking for guests
     if (!userId) {
