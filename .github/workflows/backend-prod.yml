@@ -25,24 +25,25 @@ jobs:
         with:
           node-version: 24
 
-      - name: Get Direct URL
-        run: |
-          export DIRECT_URL=$(aws ssm get-parameter --name "/assessly/prod/DIRECT_URL" --with-decryption --query "Parameter.Value" --output text)
-
-      - run: npm install
-
-      - uses: aws-actions/setup-sam@v2
-
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
           aws-region: ap-south-1
           role-to-assume: ${{ secrets.AWS_ROLE_PROD }}
 
+      - name: Get Direct URL
+        run: |
+          URL=$(aws ssm get-parameter --name "/assessly/prod/DIRECT_URL" --with-decryption --query "Parameter.Value" --output text)
+          echo "DIRECT_URL=$URL" >> $GITHUB_ENV
+
+      - run: npm install
+
+      - uses: aws-actions/setup-sam@v2
+
       - name: Run Prisma Migrations
         run: |
           npm run prisma:migrate:deploy
 
-      - run: sam build
+      - run: sam build --parallel
 
       - run: sam deploy --config-env prod --no-confirm-changeset
