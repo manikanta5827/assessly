@@ -13,11 +13,11 @@ else
 fi
 CHANGED_FILES=$(git diff --name-only $BASE_BRANCH...HEAD)
 
-# Conditional Backend Build
-if echo "$CHANGED_FILES" | grep -q "^backend/"; then
-  echo "📦 Backend changes detected, running sam build..."
-  npm run build:backend
-fi
+# # Conditional Backend Build
+# if echo "$CHANGED_FILES" | grep -q "^backend/"; then
+#   echo "📦 Backend changes detected, running sam build..."
+#   npm run build:backend
+# fi
 
 # Conditional Frontend Build
 if echo "$CHANGED_FILES" | grep -q "^frontend/"; then
