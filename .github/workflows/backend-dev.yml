@@ -6,6 +6,10 @@ on:
     paths:
       - "backend/**"
 
+permissions:
+  id-token: write
+  contents: read
+
 jobs:
   deploy:
     runs-on: ubuntu-latest
@@ -28,14 +32,19 @@ jobs:
       - name: Setup SAM CLI
         uses: aws-actions/setup-sam@v2
 
-      # - name: Configure AWS creds
-      #   uses: aws-actions/configure-aws-credentials@v4
-      #   with:
-      #     aws-region: ap-south-1
-      #     role-to-assume: ${{ secrets.AWS_ROLE_DEV }}
+      - name: Configure AWS creds
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-region: ap-south-1
+          role-to-assume: ${{ secrets.AWS_ROLE_DEV }}
 
-      # - name: Build SAM
-      #   run: sam build
+      - name: Run Prisma Migrations
+        run: |
+          export DIRECT_URL=$(aws ssm get-parameter --name "/assessly/dev/DIRECT_URL" --with-decryption --query "Parameter.Value" --output text)
+          npm run prisma:migrate:deploy
 
-      # - name: Deploy SAM (dev)
-      #   run: sam deploy --config-env dev --no-confirm-changeset
+      - name: Build SAM
+        run: sam build
+
+      - name: Deploy SAM (dev)
+        run: sam deploy --config-env dev --no-confirm-changeset
