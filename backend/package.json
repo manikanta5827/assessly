@@ -6,7 +6,7 @@
   "scripts": {
     "build": "sam validate --lint && sam build --cached --parallel",
     "deploy": "sam deploy --no-confirm-changeset",
-    "lambda": "sam local invoke MainLambda --env-vars env.json -e event.json --container-host-interface 0.0.0.0",
+    "lambda": "sam local start-api --warm-containers EAGER",
     "delete": "aws cloudformation delete-stack --stack-name assessly-backend",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
@@ -22,16 +22,13 @@
     "@aws-sdk/client-sqs": "^3.0.0",
     "@langchain/anthropic": "^0.3.0",
     "@langchain/openai": "^0.3.0",
-    "@octokit/rest": "^20.0.0",
     "@prisma/adapter-pg": "^7.7.0",
     "@prisma/client": "^7.7.0",
     "@supabase/supabase-js": "^2.0.0",
-    "fflate": "^0.8.2",
+    "esbuild": "^0.25.12",
     "langchain": "^0.3.0",
-    "octokit": "^4.1.0",
     "pg": "^8.13.3",
-    "zod": "^3.23.0",
-    "esbuild": "^0.25.12"
+    "zod": "^3.23.0"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
