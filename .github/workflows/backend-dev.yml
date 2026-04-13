@@ -26,21 +26,22 @@ jobs:
         with:
           node-version: 24
 
+      - name: Configure AWS creds
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-region: ap-south-1
+          role-to-assume: ${{ secrets.AWS_ROLE_DEV }}
+
       - name: Get Direct URL
         run: |
-          export DIRECT_URL=$(aws ssm get-parameter --name "/assessly/dev/DIRECT_URL" --with-decryption --query "Parameter.Value" --output text)
+          URL=$(aws ssm get-parameter --name "/assessly/dev/DIRECT_URL" --with-decryption --query "Parameter.Value" --output text)
+          echo "DIRECT_URL=$URL" >> $GITHUB_ENV
 
       - name: Install deps
         run: npm install
 
       - name: Setup SAM CLI
         uses: aws-actions/setup-sam@v2
-
-      - name: Configure AWS creds
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          aws-region: ap-south-1
-          role-to-assume: ${{ secrets.AWS_ROLE_DEV }}
 
       - name: Run Prisma Migrations
         run: |
