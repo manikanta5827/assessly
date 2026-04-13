@@ -21,14 +21,14 @@
   "lint-staged": {
     "backend/src/**/*.{ts,js}": [
       "npm run lint:fix --prefix backend",
-      "npm run typecheck --prefix backend"
+      "bash -c 'npm run typecheck --prefix backend'"
     ],
     "backend/template.yaml": [
-      "npm run validate:backend"
+      "bash -c 'npm run validate:backend'"
     ],
     "frontend/src/**/*.{ts,tsx,js,jsx}": [
       "npm run lint --prefix frontend",
-      "npm run typecheck --prefix frontend"
+      "bash -c 'npm run typecheck --prefix frontend'"
     ]
   }
 }
