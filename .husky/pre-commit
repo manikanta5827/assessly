@@ -1,0 +1,9 @@
+# Check if current branch is main
+branch="$(git rev-parse --abbrev-ref HEAD)"
+if [ "$branch" = "main" ]; then
+  echo "❌ Direct commits to 'main' branch are prohibited. Please use a feature branch."
+  exit 1
+fi
+
+# Run the Linters and Typecheck
+npx lint-staged
