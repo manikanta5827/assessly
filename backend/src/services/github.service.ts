@@ -1,11 +1,12 @@
-import { Octokit } from 'octokit';
-import { unzipSync } from 'fflate';
+import { pipeline } from 'node:stream/promises';
+import { Readable } from 'node:stream';
+import unzipper from 'unzipper';
 
 export class GitHubService {
-  private readonly octokit: Octokit;
+  private readonly token?: string;
 
   constructor(token?: string) {
-    this.octokit = new Octokit({ auth: token || process.env.GITHUB_TOKEN });
+    this.token = token || process.env.GITHUB_TOKEN;
   }
 
   parseUrl(url: string) {
@@ -19,50 +20,83 @@ export class GitHubService {
   }
 
   async buildContext(owner: string, repo: string): Promise<string> {
-    // 1. Fetch zip as a Buffer
-    const { data } = await this.octokit.rest.repos.downloadZipballArchive({
-      owner,
-      repo,
-      ref: 'main', // Default to main
+    const zipUrl = `https://api.github.com/repos/${owner}/${repo}/zipball/HEAD`;
+
+    const response = await fetch(zipUrl, {
+      headers: {
+        Authorization: `token ${this.token}`,
+        'User-Agent': 'Assessly-Backend',
+        Accept: 'application/vnd.github+json',
+      },
     });
 
-    const zipBuffer = new Uint8Array(data as ArrayBuffer);
-    const contextLines: string[] = [];
-
-    // 2. Unzip everything
-    const decompressed = unzipSync(zipBuffer);
-
-    for (const [path, content] of Object.entries(decompressed)) {
-      const isSource =
-        /\.(ts|tsx|js|jsx|py|go|rs|java|c|cpp|h|css|html|md|yaml|yml|toml)$/i.test(path) &&
-        !path.includes('node_modules/') &&
-        !path.includes('dist/') &&
-        !path.includes('.next/') &&
-        !path.includes('__pycache__/') &&
-        !path.includes('.git/') &&
-        !path.includes('.vscode/') &&
-        !path.includes('-lock.') &&
-        !path.includes('prettier') &&
-        !path.includes('esbuild.config') &&
-        !path.includes('.json') && // Strictly exclude JSON
-        !/\.(png|jpg|jpeg|gif|svg|webp|ico|pdf|zip|gz|tar|mp4|mov|mp3|woff|woff2|ttf|otf|bin|map|exe|dll|so|dylib)$/i.test(
-          path
-        );
-
-      // Skip directories (empty content) or non-source files
-      if (content.length === 0 || !isSource) continue;
-
-      // Decode only the files we actually want to keep
-      const text = new TextDecoder().decode(content);
-
-      // GitHub zip paths start with 'owner-repo-hash/' - we strip that
-      const cleanedPath = path.split('/').slice(1).join('/');
-
-      contextLines.push(`--- FILE: ${cleanedPath} ---`);
-      contextLines.push(text);
-      contextLines.push(''); // Add newline for better separation
+    if (!response.ok) {
+      const msg = await response.text();
+      throw new Error(`GitHub fetch failed [${response.status}]: ${msg}`);
     }
 
+    if (!response.body) throw new Error('GitHub response body is empty');
+    const nodeStream = Readable.fromWeb(response.body as import('node:stream/web').ReadableStream);
+    const contextLines: string[] = [];
+
+    await pipeline(
+      nodeStream,
+
+      unzipper.Parse(),
+
+      async function (this: GitHubService, source: AsyncIterable<unzipper.Entry>) {
+        for await (const entry of source) {
+          const rawPath: string = entry.path;
+          const entryType: string = entry.type; // 'File' or 'Directory'
+
+          if (entryType === 'Directory') {
+            entry.autodrain(); // release the stream slot
+            continue;
+          }
+
+          const cleanedPath = rawPath.split('/').slice(1).join('/');
+
+          if (!this.isSourceFile(cleanedPath)) {
+            entry.autodrain(); // ← skip, zero RAM cost
+            continue;
+          }
+
+          const uncompressedSize: number = entry.extra?.uncompressedSize ?? 0;
+          const MAX_FILE_BYTES = 100 * 1024; // 100 KB
+
+          if (uncompressedSize > MAX_FILE_BYTES) {
+            console.warn(
+              `[GitHubService] Skipping large file: ${cleanedPath} (${(uncompressedSize / 1024).toFixed(1)} KB)`
+            );
+            entry.autodrain();
+            continue;
+          }
+
+          const content = await entry.buffer();
+          contextLines.push(`--- FILE: ${cleanedPath} ---\n${content.toString('utf8')}\n`);
+        }
+      }.bind(this)
+    );
+
     return contextLines.join('\n');
+  }
+
+  private isSourceFile(filePath: string): boolean {
+    return (
+      /\.(ts|tsx|js|jsx|py|go|rs|java|c|cpp|h|css|html|md|yaml|yml|toml)$/i.test(filePath) &&
+      !filePath.includes('node_modules/') &&
+      !filePath.includes('dist/') &&
+      !filePath.includes('.next/') &&
+      !filePath.includes('__pycache__/') &&
+      !filePath.includes('.git/') &&
+      !filePath.includes('.vscode/') &&
+      !filePath.includes('-lock.') && // package-lock.json, yarn.lock etc.
+      !filePath.includes('prettier') &&
+      !filePath.includes('esbuild.config') &&
+      !filePath.includes('.json') && // all JSON files excluded
+      !/\.(png|jpg|jpeg|gif|svg|webp|ico|pdf|zip|gz|tar|mp4|mov|mp3|woff|woff2|ttf|otf|bin|map|exe|dll|so|dylib)$/i.test(
+        filePath
+      )
+    );
   }
 }

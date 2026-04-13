@@ -6,7 +6,8 @@
     "prepare": "husky",
     "lint:backend": "npm run lint --prefix backend",
     "typecheck:backend": "npm run typecheck --prefix backend",
-    "build:backend": "cd backend && sam build --cached --parallel --use-container --skip-pull-image",
+    "validate:backend": "sam validate --lint -t backend/template.yaml",
+    "build:backend": "cd backend && sam build --cached --parallel",
     "build:frontend": "npm run build --prefix frontend",
     "lint:frontend": "npm run lint --prefix frontend",
     "typecheck:frontend": "npm run typecheck --prefix frontend"
@@ -23,7 +24,7 @@
       "bash -c 'npm run typecheck --prefix backend'"
     ],
     "backend/template.yaml": [
-      "sam validate --lint -t"
+      "bash -c 'npm run validate:backend'"
     ],
     "frontend/src/**/*.{ts,tsx,js,jsx}": [
       "npm run lint --prefix frontend",

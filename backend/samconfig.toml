@@ -1,0 +1,30 @@
+version = 0.1
+
+[dev.deploy.parameters]
+stack_name = "Assessly-Dev"
+resolve_s3 = true
+s3_prefix = "Assessly-Dev"
+region = "ap-south-1"
+confirm_changeset = false
+capabilities = "CAPABILITY_IAM"
+parameter_overrides = "Stage=\"dev\""
+image_repositories = []
+
+[prod.deploy.parameters]
+stack_name = "Assessly-Prod"
+resolve_s3 = true
+s3_prefix = "Assessly-Prod"
+region = "ap-south-1"
+confirm_changeset = true
+capabilities = "CAPABILITY_IAM"
+parameter_overrides = "Stage=\"prod\""
+image_repositories = []
+
+[dev.global.parameters]
+region = "ap-south-1"
+
+[prod.global.parameters]
+region = "ap-south-1"
+
+[default.global.parameters]
+region = "ap-south-1"

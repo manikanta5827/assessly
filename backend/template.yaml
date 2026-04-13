@@ -11,18 +11,6 @@ Parameters:
       - dev
       - prod
     Default: dev
-  GithubToken:
-    Type: 'AWS::SSM::Parameter::Value<String>'
-    Description: API Key for Github service
-    Default: /assessly/GITHUB_TOKEN
-  OpenaiApiKey:
-    Type: 'AWS::SSM::Parameter::Value<String>'
-    Description: API Key for OpenAI service
-    Default: /assessly/OPENAI_API_KEY
-  DatabaseUrl:
-    Type: 'AWS::SSM::Parameter::Value<String>'
-    Description: Database connection URL
-    Default: /assessly/DATABASE_URL
 
 # --- GLOBALS
 Globals:
@@ -33,9 +21,6 @@ Globals:
     Environment:
       Variables:
         LOG_LEVEL: INFO
-        DATABASE_URL: !Ref DatabaseUrl
-        GITHUB_TOKEN: !Ref GithubToken
-        OPENAI_API_KEY: !Ref OpenaiApiKey
 
 Resources:
   # --- LAMBDA FUNCTIONS
@@ -47,14 +32,12 @@ Resources:
       Handler: src/lambdas/analyze-trigger.handler
       Policies:
         - AWSLambdaBasicExecutionRole
-        - Version: '2012-10-17'
-          Statement:
-            - Effect: Allow
-              Action: 'lambda:InvokeFunction'
-              Resource: !GetAtt ProcessFunction.Arn
+        - SQSSendMessagePolicy:
+            QueueName: !GetAtt ProcessQueue.QueueName
       Environment:
         Variables:
-          PROCESS_FUNCTION_NAME: !Ref ProcessFunction
+          QUEUE_URL: !Ref ProcessQueue
+          DATABASE_URL: !Sub "{{resolve:ssm:/assessly/${Stage}/DATABASE_URL}}"
       Events:
         AnalyzeApi:
           Type: Api
@@ -70,7 +53,8 @@ Resources:
         External:
           - '@aws-sdk/*'
         Sourcemap: true
-        EntryPoints: src/lambdas/analyze-trigger.ts
+        EntryPoints:
+          - src/lambdas/analyze-trigger.ts
 
   #  Actual Processing Function
   ProcessFunction:
@@ -82,6 +66,17 @@ Resources:
       MemorySize: 512
       Policies:
         - AWSLambdaBasicExecutionRole
+      Environment:
+        Variables:
+          DATABASE_URL: !Sub "{{resolve:ssm:/assessly/${Stage}/DATABASE_URL}}"
+          GITHUB_TOKEN: !Sub "{{resolve:ssm:/assessly/${Stage}/GITHUB_TOKEN}}"
+          OPENAI_API_KEY: !Sub "{{resolve:ssm:/assessly/${Stage}/OPENAI_API_KEY}}"
+      Events:
+        ProcessQueueEvent:
+          Type: SQS
+          Properties:
+            Queue: !GetAtt ProcessQueue.Arn
+            BatchSize: 1
     Metadata:
       BuildMethod: esbuild
       BuildProperties:
@@ -89,8 +84,11 @@ Resources:
         Target: es2022
         External:
           - '@aws-sdk/*'
+          - '@prisma/client'
+          - '.prisma'
         Sourcemap: true
-        EntryPoints: src/lambdas/analyze-process.ts
+        EntryPoints:
+          - src/lambdas/analyze-process.ts
 
   # Get Assessment Function
   GetAssessmentFunction:
@@ -100,6 +98,9 @@ Resources:
       Handler: src/lambdas/get-assessment.handler
       Policies:
         - AWSLambdaBasicExecutionRole
+      Environment:
+        Variables:
+          DATABASE_URL: !Sub "{{resolve:ssm:/assessly/${Stage}/DATABASE_URL}}"  
       Events:
         GetAssessmentApi:
           Type: Api
@@ -114,8 +115,11 @@ Resources:
         Target: es2022
         External:
           - '@aws-sdk/*'
+          - '@prisma/client'
+          - '.prisma'
         Sourcemap: true
-        EntryPoints: src/lambdas/get-assessment.ts
+        EntryPoints:
+          - src/lambdas/get-assessment.ts
 
   # --- LOG GROUPS
   LogGroup1:
@@ -141,6 +145,13 @@ Resources:
     Properties:
       LogGroupName: !Sub '/aws/lambda/${GetAssessmentFunction}'
       RetentionInDays: 3
+
+  # --- SQS QUEUE
+  ProcessQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      VisibilityTimeout: 300
+      QueueName: !Sub "${Stage}-AssesslyProcessQueue"
 
   # --- API GATEWAY
   APIGateway:
