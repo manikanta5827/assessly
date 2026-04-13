@@ -48,7 +48,7 @@ jobs:
           npm run prisma:migrate:deploy
 
       - name: Build SAM
-        run: sam build
+        run: sam build --parallel
 
       - name: Deploy SAM (dev)
         run: sam deploy --config-env dev --no-confirm-changeset
