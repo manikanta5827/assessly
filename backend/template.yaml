@@ -11,18 +11,6 @@ Parameters:
       - dev
       - prod
     Default: dev
-  GithubToken:
-    Type: 'AWS::SSM::Parameter::Value<String>'
-    Description: API Key for Github service
-    Default: /assessly/GITHUB_TOKEN
-  OpenaiApiKey:
-    Type: 'AWS::SSM::Parameter::Value<String>'
-    Description: API Key for OpenAI service
-    Default: /assessly/OPENAI_API_KEY
-  DatabaseUrl:
-    Type: 'AWS::SSM::Parameter::Value<String>'
-    Description: Database connection URL
-    Default: /assessly/DATABASE_URL
 
 # --- GLOBALS
 Globals:
@@ -33,9 +21,6 @@ Globals:
     Environment:
       Variables:
         LOG_LEVEL: INFO
-        DATABASE_URL: !Ref DatabaseUrl
-        GITHUB_TOKEN: !Ref GithubToken
-        OPENAI_API_KEY: !Ref OpenaiApiKey
 
 Resources:
   # --- LAMBDA FUNCTIONS
@@ -82,6 +67,11 @@ Resources:
       MemorySize: 512
       Policies:
         - AWSLambdaBasicExecutionRole
+      Environment:
+        Variables:
+          DATABASE_URL: !Sub "{{resolve:ssm:/assessly/${Stage}/DATABASE_URL}}"
+          GITHUB_TOKEN: !Sub "{{resolve:ssm:/assessly/${Stage}/GITHUB_TOKEN}}"
+          OPENAI_API_KEY: !Sub "{{resolve:ssm:/assessly/${Stage}/OPENAI_API_KEY}}"
       Events:
         ProcessQueueEvent:
           Type: SQS
@@ -109,6 +99,9 @@ Resources:
       Handler: src/lambdas/get-assessment.handler
       Policies:
         - AWSLambdaBasicExecutionRole
+      Environment:
+        Variables:
+          DATABASE_URL: !Sub "{{resolve:ssm:/assessly/${Stage}/DATABASE_URL}}"  
       Events:
         GetAssessmentApi:
           Type: Api
