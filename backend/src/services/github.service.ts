@@ -1,8 +1,6 @@
-import fs from 'node:fs';
-import path from 'node:path';
-import { spawnSync } from 'node:child_process';
 import { pipeline } from 'node:stream/promises';
 import { Readable } from 'node:stream';
+import unzipper from 'unzipper';
 
 export class GitHubService {
   private readonly token?: string;
@@ -22,85 +20,69 @@ export class GitHubService {
   }
 
   async buildContext(owner: string, repo: string): Promise<string> {
-    const stageId = Math.random().toString(36).substring(7);
-    const tmpDir = `/tmp/assessly-${stageId}`;
-    const zipPath = `${tmpDir}/repo.zip`;
-    const extractDir = `${tmpDir}/extracted`;
+    const zipUrl = `https://api.github.com/repos/${owner}/${repo}/zipball/HEAD`;
 
-    try {
-      // 1. Setup directories
-      if (!fs.existsSync(tmpDir)) fs.mkdirSync(tmpDir, { recursive: true });
-      if (!fs.existsSync(extractDir)) fs.mkdirSync(extractDir, { recursive: true });
+    const response = await fetch(zipUrl, {
+      headers: {
+        Authorization: `token ${this.token}`,
+        'User-Agent': 'Assessly-Backend',
+        Accept: 'application/vnd.github+json',
+      },
+    });
 
-      // 2. Fetch zipball as a stream
-      // We use the direct API URL to get a stream response
-      const zipUrl = `https://api.github.com/repos/${owner}/${repo}/zipball/main`;
-      const response = await fetch(zipUrl, {
-        headers: {
-          Authorization: `token ${this.token}`,
-          'User-Agent': 'Assessly-Backend',
-        },
-      });
-
-      if (!response.ok) {
-        throw new Error(`Failed to fetch zipball: ${response.statusText}`);
-      }
-
-      const fileStream = fs.createWriteStream(zipPath);
-      // @ts-expect-error Node 18+
-      await pipeline(Readable.fromWeb(response.body), fileStream);
-
-      // 3. Unzip using native 'unzip' utility (efficient & memory safe)
-      const unzipResult = spawnSync('unzip', ['-q', zipPath, '-d', extractDir]);
-      if (unzipResult.status !== 0) {
-        throw new Error(`Unzip failed: ${unzipResult.stderr.toString()}`);
-      }
-
-      const contextLines: string[] = [];
-
-      // 4. Recursively walk the directory and process files
-      const processDir = async (dir: string) => {
-        const entries = fs.readdirSync(dir, { withFileTypes: true });
-
-        for (const entry of entries) {
-          const fullPath = path.join(dir, entry.name);
-
-          if (entry.isDirectory()) {
-            await processDir(fullPath);
-          } else {
-            const relPath = path.relative(extractDir, fullPath);
-
-            if (this.isSourceFile(relPath)) {
-              const content = fs.readFileSync(fullPath, 'utf8');
-
-              // GitHub zip paths start with 'owner-repo-hash/' - we strip that
-              const cleanedPath = relPath.split(path.sep).slice(1).join('/');
-
-              contextLines.push(`--- FILE: ${cleanedPath} ---`);
-              contextLines.push(content);
-              contextLines.push(''); // Add newline for better separation
-            }
-          }
-        }
-      };
-
-      await processDir(extractDir);
-
-      return contextLines.join('\n');
-    } finally {
-      // 5. Cleanup
-      try {
-        if (fs.existsSync(tmpDir)) {
-          fs.rmSync(tmpDir, { recursive: true, force: true });
-        }
-      } catch (err) {
-        console.error('Failed to cleanup temp files:', err);
-      }
+    if (!response.ok) {
+      const msg = await response.text();
+      throw new Error(`GitHub fetch failed [${response.status}]: ${msg}`);
     }
+
+    if (!response.body) throw new Error('GitHub response body is empty');
+    const nodeStream = Readable.fromWeb(response.body as import('node:stream/web').ReadableStream);
+    const contextLines: string[] = [];
+
+    await pipeline(
+      nodeStream,
+
+      unzipper.Parse(),
+
+      async function (this: GitHubService, source: AsyncIterable<unzipper.Entry>) {
+        for await (const entry of source) {
+          const rawPath: string = entry.path;
+          const entryType: string = entry.type; // 'File' or 'Directory'
+
+          if (entryType === 'Directory') {
+            entry.autodrain(); // release the stream slot
+            continue;
+          }
+
+          const cleanedPath = rawPath.split('/').slice(1).join('/');
+
+          if (!this.isSourceFile(cleanedPath)) {
+            entry.autodrain(); // ← skip, zero RAM cost
+            continue;
+          }
+
+          const uncompressedSize: number = entry.extra?.uncompressedSize ?? 0;
+          const MAX_FILE_BYTES = 100 * 1024; // 100 KB
+
+          if (uncompressedSize > MAX_FILE_BYTES) {
+            console.warn(
+              `[GitHubService] Skipping large file: ${cleanedPath} (${(uncompressedSize / 1024).toFixed(1)} KB)`
+            );
+            entry.autodrain();
+            continue;
+          }
+
+          const content = await entry.buffer();
+          contextLines.push(`--- FILE: ${cleanedPath} ---\n${content.toString('utf8')}\n`);
+        }
+      }.bind(this)
+    );
+
+    return contextLines.join('\n');
   }
 
   private isSourceFile(filePath: string): boolean {
-    const isSource =
+    return (
       /\.(ts|tsx|js|jsx|py|go|rs|java|c|cpp|h|css|html|md|yaml|yml|toml)$/i.test(filePath) &&
       !filePath.includes('node_modules/') &&
       !filePath.includes('dist/') &&
@@ -108,13 +90,13 @@ export class GitHubService {
       !filePath.includes('__pycache__/') &&
       !filePath.includes('.git/') &&
       !filePath.includes('.vscode/') &&
-      !filePath.includes('-lock.') &&
+      !filePath.includes('-lock.') && // package-lock.json, yarn.lock etc.
       !filePath.includes('prettier') &&
       !filePath.includes('esbuild.config') &&
-      !filePath.includes('.json') && // Strictly exclude JSON
+      !filePath.includes('.json') && // all JSON files excluded
       !/\.(png|jpg|jpeg|gif|svg|webp|ico|pdf|zip|gz|tar|mp4|mov|mp3|woff|woff2|ttf|otf|bin|map|exe|dll|so|dylib)$/i.test(
         filePath
-      );
-    return isSource;
+      )
+    );
   }
 }
