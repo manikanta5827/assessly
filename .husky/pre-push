@@ -5,19 +5,13 @@ if [ "$branch" = "main" ]; then
   exit 1
 fi
 
-# Get list of changed files compared to main
-# If on main, just check the commits being pushed
-if [ "$branch" = "main" ]; then
-  CHANGED_FILES=$(git diff --name-only HEAD@{1} HEAD)
+# Check if origin/main exists, otherwise use main
+if git rev-parse --verify origin/main >/dev/null 2>&1; then
+  BASE_BRANCH="origin/main"
 else
-  # Check if origin/main exists, otherwise use main
-  if git rev-parse --verify origin/main >/dev/null 2>&1; then
-    BASE_BRANCH="origin/main"
-  else
-    BASE_BRANCH="main"
-  fi
-  CHANGED_FILES=$(git diff --name-only $BASE_BRANCH...HEAD)
+  BASE_BRANCH="main"
 fi
+CHANGED_FILES=$(git diff --name-only $BASE_BRANCH...HEAD)
 
 # Conditional Backend Build
 if echo "$CHANGED_FILES" | grep -q "^backend/"; then
@@ -26,7 +20,7 @@ if echo "$CHANGED_FILES" | grep -q "^backend/"; then
 fi
 
 # Conditional Frontend Build
-if echo "$CHANGED_FILES" | grep -E "^frontend/src/.*\.([tj]sx?)$" | grep -q .; then
+if echo "$CHANGED_FILES" | grep -q "^frontend/"; then
   echo "⚛️ Frontend source changes detected, running npm run build..."
   npm run build:frontend
 fi
