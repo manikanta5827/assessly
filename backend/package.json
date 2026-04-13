@@ -1,0 +1,62 @@
+{
+  "name": "assessly-backend",
+  "version": "1.0.0",
+  "description": "Assessly Backend - AWS SAM",
+  "main": "index.js",
+  "scripts": {
+    "build": "sam validate --lint && sam build --cached --parallel --use-container --skip-pull-image",
+    "deploy": "sam deploy --no-confirm-changeset",
+    "lambda": "sam local invoke MainLambda --env-vars env.json -e event.json --container-host-interface 0.0.0.0",
+    "delete": "aws cloudformation delete-stack --stack-name assessly-backend",
+    "prisma:generate": "prisma generate",
+    "prisma:migrate": "prisma migrate dev",
+    "prisma:migrate:deploy": "prisma migrate deploy",
+    "prisma:reset": "prisma migrate reset",
+    "prisma:format": "prisma format",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint src",
+    "format": "prettier --write \"src/**/*.ts\"",
+    "lint:fix": "eslint src --fix ",
+    "prepare": "husky"
+  },
+  "dependencies": {
+    "@aws-sdk/client-lambda": "^3.0.0",
+    "@langchain/anthropic": "^0.3.0",
+    "@langchain/openai": "^0.3.0",
+    "@octokit/rest": "^20.0.0",
+    "@prisma/adapter-pg": "^7.7.0",
+    "@prisma/client": "^7.7.0",
+    "@supabase/supabase-js": "^2.0.0",
+    "fflate": "^0.8.2",
+    "langchain": "^0.3.0",
+    "octokit": "^4.1.0",
+    "pg": "^8.13.3",
+    "zod": "^3.23.0"
+  },
+  "devDependencies": {
+    "@commitlint/cli": "^20.5.0",
+    "@commitlint/config-conventional": "^20.5.0",
+    "@eslint/js": "^10.0.1",
+    "@types/aws-lambda": "^8.10.0",
+    "@types/node": "^24.0.0",
+    "@types/pg": "^8.11.11",
+    "esbuild": "^0.25.0",
+    "eslint": "^10.2.0",
+    "globals": "^17.5.0",
+    "husky": "^9.1.7",
+    "lint-staged": "^16.4.0",
+    "prettier": "^3.8.2",
+    "prisma": "^7.7.0",
+    "typescript": "^5.9.3",
+    "typescript-eslint": "^8.58.1"
+  },
+  "lint-staged": {
+    "src/**/*.{ts,js}": [
+      "eslint --fix",
+      "bash -c 'npm run typecheck'"
+    ],
+    "template.yaml": [
+      "sam validate --lint -t"
+    ]
+  }
+}

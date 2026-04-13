@@ -1,0 +1,52 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum AssessmentStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+}
+
+model Assessment {
+  id     String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId String? @map("user_id")
+  ipHash String  @map("ip_hash")
+
+  repoUrl          String  @map("repo_url")
+  requirementsText String  @map("requirements_text")
+  repoSnapshot     String? @map("repo_snapshot") // The big markdown DFS output
+
+  status AssessmentStatus @default(PENDING)
+
+  score              Int?
+  aiUsageDetection   Json? @map("ai_usage_detection") // { score: number, confidence: number, reasoning: string }
+  summary            Json? // { goods: string[], bads: string[] }  ← Changed to object
+  interviewQuestions Json? @map("interview_questions") // array of objects
+  testDetection      Json? @map("test_detection")
+  repoMap            Json? @map("repo_map")
+
+  testExecuted Boolean @default(false) @map("test_executed")
+  testResults  Json?   @map("test_results")
+
+  rawLlmResponse Json? @map("raw_llm_response")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at")
+
+  @@map("assessments")
+}
+
+model IpTracking {
+  ipHash          String   @id @map("ip_hash")
+  assessmentCount Int      @default(0) @map("assessment_count")
+  firstSeenAt     DateTime @default(now()) @map("first_seen_at")
+  lastSeenAt      DateTime @default(now()) @map("last_seen_at")
+
+  @@map("ip_tracking")
+}

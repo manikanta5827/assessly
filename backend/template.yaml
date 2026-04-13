@@ -1,0 +1,158 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: Assessly - AI GitHub Assessment Reviewer
+
+# --- PARAMETERS
+Parameters:
+  Stage:
+    Type: String
+    Description: stage name for all resources
+    AllowedValues:
+      - dev
+      - prod
+    Default: dev
+  GithubToken:
+    Type: 'AWS::SSM::Parameter::Value<String>'
+    Description: API Key for Github service
+    Default: /assessly/GITHUB_TOKEN
+  OpenaiApiKey:
+    Type: 'AWS::SSM::Parameter::Value<String>'
+    Description: API Key for OpenAI service
+    Default: /assessly/OPENAI_API_KEY
+  DatabaseUrl:
+    Type: 'AWS::SSM::Parameter::Value<String>'
+    Description: Database connection URL
+    Default: /assessly/DATABASE_URL
+
+# --- GLOBALS
+Globals:
+  Function:
+    Runtime: nodejs24.x
+    Architectures:
+      - arm64
+    Environment:
+      Variables:
+        LOG_LEVEL: INFO
+        DATABASE_URL: !Ref DatabaseUrl
+        GITHUB_TOKEN: !Ref GithubToken
+        OPENAI_API_KEY: !Ref OpenaiApiKey
+
+Resources:
+  # --- LAMBDA FUNCTIONS
+  # Trigger Function
+  TriggerFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: ./
+      Handler: src/lambdas/analyze-trigger.handler
+      Policies:
+        - AWSLambdaBasicExecutionRole
+        - Version: '2012-10-17'
+          Statement:
+            - Effect: Allow
+              Action: 'lambda:InvokeFunction'
+              Resource: !GetAtt ProcessFunction.Arn
+      Environment:
+        Variables:
+          PROCESS_FUNCTION_NAME: !Ref ProcessFunction
+      Events:
+        AnalyzeApi:
+          Type: Api
+          Properties:
+            RestApiId: !Ref APIGateway
+            Path: /analyze
+            Method: post
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        Minify: true
+        Target: es2022
+        External:
+          - '@aws-sdk/*'
+        Sourcemap: true
+        EntryPoints: src/lambdas/analyze-trigger.ts
+
+  #  Actual Processing Function
+  ProcessFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: ./
+      Handler: src/lambdas/analyze-process.handler
+      Timeout: 300
+      MemorySize: 512
+      Policies:
+        - AWSLambdaBasicExecutionRole
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        Minify: true
+        Target: es2022
+        External:
+          - '@aws-sdk/*'
+        Sourcemap: true
+        EntryPoints: src/lambdas/analyze-process.ts
+
+  # Get Assessment Function
+  GetAssessmentFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: ./
+      Handler: src/lambdas/get-assessment.handler
+      Policies:
+        - AWSLambdaBasicExecutionRole
+      Events:
+        GetAssessmentApi:
+          Type: Api
+          Properties:
+            RestApiId: !Ref APIGateway
+            Path: /assessment/{id}
+            Method: get
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        Minify: true
+        Target: es2022
+        External:
+          - '@aws-sdk/*'
+        Sourcemap: true
+        EntryPoints: src/lambdas/get-assessment.ts
+
+  # --- LOG GROUPS
+  LogGroup1:
+    Type: AWS::Logs::LogGroup
+    DeletionPolicy: Delete
+    UpdateReplacePolicy: Delete
+    Properties:
+      LogGroupName: !Sub '/aws/lambda/${TriggerFunction}'
+      RetentionInDays: 3
+
+  LogGroup2:
+    Type: AWS::Logs::LogGroup
+    DeletionPolicy: Delete
+    UpdateReplacePolicy: Delete
+    Properties:
+      LogGroupName: !Sub '/aws/lambda/${ProcessFunction}'
+      RetentionInDays: 3
+
+  LogGroup3:
+    Type: AWS::Logs::LogGroup
+    DeletionPolicy: Delete
+    UpdateReplacePolicy: Delete
+    Properties:
+      LogGroupName: !Sub '/aws/lambda/${GetAssessmentFunction}'
+      RetentionInDays: 3
+
+  # --- API GATEWAY
+  APIGateway:
+    Type: AWS::Serverless::Api
+    Properties:
+      StageName: !Ref Stage
+      Cors:
+        AllowOrigin: "'*'"
+        AllowHeaders: "'Content-Type,Authorization'"
+        AllowMethods: "'GET,POST,OPTIONS'"
+
+Outputs:
+  AssesslyApi:
+    Description: 'API Gateway endpoint URL'
+    Value: !Sub 'https://${APIGateway}.execute-api.${AWS::Region}.amazonaws.com/${Stage}'

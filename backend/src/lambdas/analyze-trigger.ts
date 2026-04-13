@@ -1,0 +1,105 @@
+import { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
+import { LambdaClient, InvokeCommand } from '@aws-sdk/client-lambda';
+import { prisma } from '../db/prisma';
+import * as crypto from 'node:crypto';
+
+const lambdaClient = new LambdaClient({});
+
+export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> => {
+  const headers = {
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Methods': 'POST, OPTIONS',
+    'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+    'Content-Type': 'application/json',
+  };
+
+  if (event.httpMethod === 'OPTIONS') {
+    return { statusCode: 200, headers, body: '' };
+  }
+
+  try {
+    const body = JSON.parse(event.body || '{}');
+    const { repoUrl, requirementsText, userId } = body;
+
+    if (!repoUrl || !requirementsText) {
+      return {
+        statusCode: 400,
+        headers,
+        body: JSON.stringify({ error: 'Missing repoUrl or requirementsText' }),
+      };
+    }
+
+    const ip = event.requestContext.identity.sourceIp || 'unknown';
+    const ipHash = crypto.createHash('sha256').update(ip).digest('hex');
+
+    // 1. Check IP Limits for guest users
+    if (!userId) {
+      const tracking = await prisma.ipTracking.findUnique({
+        where: { ipHash },
+      });
+
+      if (tracking && tracking.assessmentCount >= 1) {
+        return {
+          statusCode: 403,
+          headers,
+          body: JSON.stringify({
+            error: 'Free limit reached',
+            message:
+              'You have already performed one free assessment. Please sign in with Google to continue.',
+          }),
+        };
+      }
+    }
+
+    // 2. Create Assessment record (PENDING)
+    const assessment = await prisma.assessment.create({
+      data: {
+        userId: userId || null,
+        ipHash,
+        repoUrl,
+        requirementsText,
+        status: 'PENDING',
+      },
+    });
+
+    // 3. Trigger processing lambda asynchronously
+    const processFunctionName = process.env.PROCESS_FUNCTION_NAME;
+    if (!processFunctionName) {
+      throw new Error('PROCESS_FUNCTION_NAME environment variable not set');
+    }
+
+    await lambdaClient.send(
+      new InvokeCommand({
+        FunctionName: processFunctionName,
+        InvocationType: 'Event', // Asynchronous
+        Payload: JSON.stringify({ assessmentId: assessment.id }),
+      })
+    );
+
+    // 4. Update IP Tracking for guests
+    if (!userId) {
+      await prisma.ipTracking.upsert({
+        where: { ipHash },
+        update: { assessmentCount: { increment: 1 }, lastSeenAt: new Date() },
+        create: { ipHash, assessmentCount: 1 },
+      });
+    }
+
+    return {
+      statusCode: 202,
+      headers,
+      body: JSON.stringify({
+        message: 'Assessment started',
+        assessmentId: assessment.id,
+      }),
+    };
+  } catch (error: unknown) {
+    console.error('Trigger Error:', error);
+    const errorMessage = error instanceof Error ? error.message : 'Internal Server Error';
+    return {
+      statusCode: 500,
+      headers,
+      body: JSON.stringify({ error: errorMessage }),
+    };
+  }
+};
