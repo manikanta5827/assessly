@@ -70,7 +70,8 @@ Resources:
         External:
           - '@aws-sdk/*'
         Sourcemap: true
-        EntryPoints: src/lambdas/analyze-trigger.ts
+        EntryPoints:
+          - src/lambdas/analyze-trigger.ts
 
   #  Actual Processing Function
   ProcessFunction:
@@ -90,7 +91,8 @@ Resources:
         External:
           - '@aws-sdk/*'
         Sourcemap: true
-        EntryPoints: src/lambdas/analyze-process.ts
+        EntryPoints:
+          - src/lambdas/analyze-process.ts
 
   # Get Assessment Function
   GetAssessmentFunction:
@@ -115,7 +117,8 @@ Resources:
         External:
           - '@aws-sdk/*'
         Sourcemap: true
-        EntryPoints: src/lambdas/get-assessment.ts
+        EntryPoints:
+          - src/lambdas/get-assessment.ts
 
   # --- LOG GROUPS
   LogGroup1:
