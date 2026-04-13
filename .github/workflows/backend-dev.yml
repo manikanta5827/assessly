@@ -26,6 +26,10 @@ jobs:
         with:
           node-version: 24
 
+      - name: Get Direct URL
+        run: |
+          export DIRECT_URL=$(aws ssm get-parameter --name "/assessly/dev/DIRECT_URL" --with-decryption --query "Parameter.Value" --output text)
+
       - name: Install deps
         run: npm install
 
@@ -40,7 +44,6 @@ jobs:
 
       - name: Run Prisma Migrations
         run: |
-          export DIRECT_URL=$(aws ssm get-parameter --name "/assessly/dev/DIRECT_URL" --with-decryption --query "Parameter.Value" --output text)
           npm run prisma:migrate:deploy
 
       - name: Build SAM
