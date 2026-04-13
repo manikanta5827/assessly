@@ -47,14 +47,11 @@ Resources:
       Handler: src/lambdas/analyze-trigger.handler
       Policies:
         - AWSLambdaBasicExecutionRole
-        - Version: '2012-10-17'
-          Statement:
-            - Effect: Allow
-              Action: 'lambda:InvokeFunction'
-              Resource: !GetAtt ProcessFunction.Arn
+        - SQSSendMessagePolicy:
+            QueueName: !GetAtt ProcessQueue.QueueName
       Environment:
         Variables:
-          PROCESS_FUNCTION_NAME: !Ref ProcessFunction
+          QUEUE_URL: !Ref ProcessQueue
       Events:
         AnalyzeApi:
           Type: Api
@@ -85,6 +82,12 @@ Resources:
       MemorySize: 512
       Policies:
         - AWSLambdaBasicExecutionRole
+      Events:
+        ProcessQueueEvent:
+          Type: SQS
+          Properties:
+            Queue: !GetAtt ProcessQueue.Arn
+            BatchSize: 1
     Metadata:
       BuildMethod: esbuild
       BuildProperties:
@@ -150,6 +153,13 @@ Resources:
     Properties:
       LogGroupName: !Sub '/aws/lambda/${GetAssessmentFunction}'
       RetentionInDays: 3
+
+  # --- SQS QUEUE
+  ProcessQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      VisibilityTimeout: 300
+      QueueName: !Sub "${Stage}-AssesslyProcessQueue"
 
   # --- API GATEWAY
   APIGateway:

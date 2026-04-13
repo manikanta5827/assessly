@@ -1,9 +1,9 @@
 import { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
-import { LambdaClient, InvokeCommand } from '@aws-sdk/client-lambda';
+import { SQSClient, SendMessageCommand } from '@aws-sdk/client-sqs';
 import { prisma } from '../db/prisma';
 import * as crypto from 'node:crypto';
 
-const lambdaClient = new LambdaClient({});
+const sqsClient = new SQSClient({});
 
 export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> => {
   const headers = {
@@ -62,17 +62,16 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
       },
     });
 
-    // 3. Trigger processing lambda asynchronously
-    const processFunctionName = process.env.PROCESS_FUNCTION_NAME;
-    if (!processFunctionName) {
-      throw new Error('PROCESS_FUNCTION_NAME environment variable not set');
+    // 3. Send message to SQS queue
+    const queueUrl = process.env.QUEUE_URL;
+    if (!queueUrl) {
+      throw new Error('QUEUE_URL environment variable not set');
     }
 
-    await lambdaClient.send(
-      new InvokeCommand({
-        FunctionName: processFunctionName,
-        InvocationType: 'Event', // Asynchronous
-        Payload: JSON.stringify({ assessmentId: assessment.id }),
+    await sqsClient.send(
+      new SendMessageCommand({
+        QueueUrl: queueUrl,
+        MessageBody: JSON.stringify({ assessmentId: assessment.id }),
       })
     );
 
