@@ -10,6 +10,7 @@ export interface LLMUsageStats {
   outputTokens: number;
   totalTokens: number;
   estimatedCost: number;
+  cachedTokens?: number;
 }
 
 export class LLMService {
@@ -19,7 +20,7 @@ export class LLMService {
 
   private readonly PRICING = {
     openai: {
-      'gpt-4o': { input: 5.0, output: 15.0 }, // per 1M tokens
+      'gpt-4o': { input: 2.5, output: 10.0 }, // per 1M tokens
       'gpt-4o-mini': { input: 0.15, output: 0.6 },
     },
     anthropic: {
@@ -51,19 +52,35 @@ export class LLMService {
   async extractRequirements(
     instructions: string
   ): Promise<{ requirements: any[]; usage: LLMUsageStats | null }> {
+    console.log(`[LLMService] Starting extractRequirements...`);
     const prompt = PromptTemplate.fromTemplate(`
-Extract clear, testable requirements from this assignment.
+You are an expert requirement engineer. Your task is to extract clear, testable, and atomic requirements from the provided assignment text.
 
-### Rules:
-- Break into atomic requirements
-- No vague items
-- No duplicates
+### Extraction Rules:
+- **Atomic Requirements**: Each item must represent a single, specific functionality or technical constraint.
+- **Classification**: Assign a category (Feature, Technical, Security, Documentation, etc.) and an importance score (1-10, where 10 is critical).
+- **Suggested Files**: Based on typical project structures, suggest 1-2 files or directories where this requirement would likely be implemented.
+- **No Duplicates**: Ensure no overlapping or redundant requirements.
+- **Objectivity**: Use professional, technical language.
 
-### Output JSON:
+### Output JSON Format:
 [
-  {{ "id": "REQ_1", "text": "User registration" }},
-  {{ "id": "REQ_2", "text": "User login" }},
-  {{ "id": "REQ_3", "text": "Create project" }}
+  {{
+    "id": "REQ_1",
+    "category": "Feature",
+    "text": "User authentication",
+    "detail": "Implement secure sign-in and sign-up functionality using JWT or session-based auth.",
+    "importance": 9,
+    "suggestedFiles": ["src/services/auth.service.ts", "src/controllers/auth.controller.ts"]
+  }},
+  {{
+    "id": "REQ_2",
+    "category": "Documentation",
+    "text": "API Documentation",
+    "detail": "Provide a Swagger/OpenAPI specification or a detailed README explaining all endpoints.",
+    "importance": 7,
+    "suggestedFiles": ["README.md", "openapi.yaml"]
+  }}
 ]
 
 ### Assignment Text:
@@ -87,6 +104,7 @@ Extract clear, testable requirements from this assignment.
     fileNames: string[],
     repoSnapshot: string
   ): Promise<{ repoMap: any; usage: LLMUsageStats | null }> {
+    console.log(`[LLMService] Starting generateRepoMap... (${fileNames.length} files)`);
     const prompt = PromptTemplate.fromTemplate(`
 ### Candidate's Code Snapshot:
 {repoSnapshot}
@@ -106,7 +124,7 @@ You are a senior developer analyzing a codebase. Generate a JSON map of filename
   ],
   "files": {{
     "path/to/file.ts": {{
-      "summary": "1-3 sentences describing what this file does"
+      "summary": "2-3 sentences describing what this file does"
     }}
   }}
 }}
@@ -130,6 +148,7 @@ You are a senior developer analyzing a codebase. Generate a JSON map of filename
     instructions: string,
     requirements: any[],
   ): Promise<{ analysis: any; usage: LLMUsageStats | null }> {
+    console.log(`[LLMService] Starting analyzeAssessment... (${requirements.length} requirements)`);
     const prompt = PromptTemplate.fromTemplate(`
 ### Candidate's Code Snapshot:
 {repoSnapshot}
@@ -215,7 +234,9 @@ Return this exact JSON structure:
 }}
 `);
 
-    const requirementsList = requirements.map(r => `- ${r.id}: ${r.text}`).join('\n');
+    const requirementsList = requirements.map(r => 
+      `- [${r.id}] [Category: ${r.category}] [Importance: ${r.importance}/10] ${r.text}: ${r.detail || ''}`
+    ).join('\n');
 
     const chain = prompt.pipe(this.model);
     const response = (await chain.invoke({
@@ -246,6 +267,13 @@ Return this exact JSON structure:
     const inputTokens = usage.input_tokens || usage.promptTokens || 0;
     const outputTokens = usage.output_tokens || usage.completionTokens || 0;
 
+    // Extract cached tokens - common paths for OpenAI and Anthropic in LangChain
+    const cachedTokens = 
+      usage.input_token_details?.cache_read || 
+      (response as any).response_metadata?.tokenUsage?.prompt_tokens_details?.cached_tokens ||
+      usage.cache_read_input_tokens || // Anthropic specific
+      0;
+
     // Get pricing
     const providerPricing = (this.PRICING as any)[this.provider];
     const modelPricing = providerPricing?.[this.modelName] || { input: 0, output: 0 };
@@ -257,6 +285,9 @@ Return this exact JSON structure:
     console.log('--------------------------------------------------');
     console.log(`[LLMService] Usage - Provider: ${this.provider}, Model: ${this.modelName}`);
     console.log(`[LLMService] Input Tokens:  ${inputTokens}`);
+    if (cachedTokens > 0) {
+      console.log(`[LLMService] Cached Tokens: ${cachedTokens} (SAVED $${((cachedTokens / 1_000_000) * modelPricing.input * 0.5).toFixed(4)})`);
+    }
     console.log(`[LLMService] Output Tokens: ${outputTokens}`);
     console.log(`[LLMService] Total Tokens:  ${inputTokens + outputTokens}`);
     console.log(`[LLMService] Estimated Cost: $${totalCost.toFixed(4)} USD`);
@@ -265,6 +296,7 @@ Return this exact JSON structure:
     return {
       inputTokens,
       outputTokens,
+      cachedTokens,
       totalTokens: inputTokens + outputTokens,
       estimatedCost: totalCost,
     };
