@@ -1,4 +1,5 @@
 import { SQSEvent } from 'aws-lambda';
+import { Prisma } from '@prisma/client';
 import { prisma } from '../db/prisma';
 import { GitHubService } from '../services/github.service';
 import { LLMService } from '../services/llm.service';
@@ -28,7 +29,7 @@ export const handler = async (event: SQSEvent) => {
 
       // 3. Initialize Services
       const github = new GitHubService(process.env.GITHUB_TOKEN);
-      const llm = new LLMService('openai', process.env.OPENAI_API_KEY!);
+      const llm = new LLMService('openai', process.env.OPENAI_API_KEY!, "gpt-4o-mini");
 
       // 4. Process Repo
       const { owner, repo } = github.parseUrl(assessment.repoUrl);
@@ -38,7 +39,7 @@ export const handler = async (event: SQSEvent) => {
 
       // 5. AI Analysis
       console.log(`Starting AI Analysis for assessmentId: ${assessmentId}...`);
-      const analysis = await llm.analyzeAssessment(context, assessment.requirementsText);
+      const { analysis, usage } = await llm.analyzeAssessment(context, assessment.requirementsText);
 
       console.log('Analysis Done for assessmentId: ', assessmentId);
       await prisma.assessment.update({
@@ -46,6 +47,12 @@ export const handler = async (event: SQSEvent) => {
         data: {
           status: 'COMPLETED',
           score: analysis.score,
+
+          // Usage tracking
+          inputTokens: usage?.inputTokens,
+          outputTokens: usage?.outputTokens,
+          totalTokens: usage?.totalTokens,
+          estimatedCost: usage?.estimatedCost ? new Prisma.Decimal(usage.estimatedCost) : null,
 
           // New improved fields
           aiUsageDetection: analysis.aiUsageDetection,
