@@ -4,6 +4,7 @@ import { GitHubService } from '../services/github.service';
 import { LLMService } from '../services/llm.service';
 
 export const handler = async (event: SQSEvent) => {
+  console.log('Processing event: ', event);
   for (const record of event.Records) {
     const { assessmentId } = JSON.parse(record.body);
 
@@ -19,6 +20,7 @@ export const handler = async (event: SQSEvent) => {
       }
 
       // 2. Update status to PROCESSING
+      console.log('Updating status to PROCESSING for assessmentId: ', assessmentId);
       await prisma.assessment.update({
         where: { id: assessmentId },
         data: { status: 'PROCESSING' },
@@ -30,11 +32,14 @@ export const handler = async (event: SQSEvent) => {
 
       // 4. Process Repo
       const { owner, repo } = github.parseUrl(assessment.repoUrl);
+      console.log('Processing repo for owner: ', owner, ' and repo: ', repo);
       const context = await github.buildContext(owner, repo);
 
       // 5. AI Analysis
+      console.log('AI Analysis for assessmentId: ', assessmentId);
       const analysis = await llm.analyzeAssessment(context, assessment.requirementsText);
 
+      console.log('Analysis Done for assessmentId: ', assessmentId);
       await prisma.assessment.update({
         where: { id: assessmentId },
         data: {
@@ -81,4 +86,3 @@ export const handler = async (event: SQSEvent) => {
     }
   }
 };
-
