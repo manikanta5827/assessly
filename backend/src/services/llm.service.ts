@@ -212,12 +212,13 @@ Return this exact JSON structure:
     "reasoning": "<one short sentence explaining why>"
   }},
 
-  // 2-4 questions
+  // 2-5 questions
+  // These questions are asked to the candidate to clarify their understanding of the code snapshot during interview.
+  // The questions should be specific to the candidate's code snapshot.
   "interviewQuestions": [
     {{
       "question": "<specific question to ask the candidate>",
-      "focusArea": "<e.g. Authentication, Error Handling, Performance>",
-      "rationale": "<one sentence: why this question matters for this candidate>"
+      "focusArea": "<e.g. Authentication, Error Handling, Performance, Security, Scalability, Maintainability, etc>"
     }}
   ],
 
