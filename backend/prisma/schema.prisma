@@ -26,10 +26,11 @@ model Assessment {
   status AssessmentStatus @default(PENDING)
 
   score              Int?
-  aiUsageDetection   Json? @map("ai_usage_detection") // { score: number, confidence: number, reasoning: string }
-  summaryText String? @map("summary_text")
-  codeReview  Json?   @map("code_review") // { goods: string[], bads: string[] }
-  interviewQuestions Json? @map("interview_questions") // array of objects
+  aiUsageDetection   Json? @map("ai_usage_detection")
+  summary            String? @map("summary")
+  requirements       Json?   @map("requirements")
+  requirementsEvaluation Json? @map("requirements_evaluation")
+  interviewQuestions Json? @map("interview_questions")
   testDetection      Json? @map("test_detection")
   repoMap            Json? @map("repo_map")
 
