@@ -2,6 +2,7 @@ import { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
 import { prisma } from '../db/prisma';
 
 export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> => {
+  console.log(`processing get assessment`);
   const headers = {
     'Access-Control-Allow-Origin': '*',
     'Access-Control-Allow-Methods': 'GET, OPTIONS',
@@ -24,9 +25,11 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
   }
 
   try {
+    console.time('db');
     const assessment = await prisma.assessment.findUnique({
       where: { id },
     });
+    console.timeEnd('db');
 
     if (!assessment) {
       return {
@@ -49,7 +52,6 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
         requirementsEvaluation: assessment.requirementsEvaluation || [],
         interviewQuestions: assessment.interviewQuestions || [],
         testDetection: assessment.testDetection || { hasTests: false },
-        repoMap: assessment.repoMap || { tree: [], files: {} },
       }),
     };
   } catch (error: unknown) {
