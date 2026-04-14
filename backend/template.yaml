@@ -105,7 +105,7 @@ Resources:
           Type: Api
           Properties:
             RestApiId: !Ref APIGateway
-            Path: /assessment/{id}
+            Path: /assessment
             Method: get
     Metadata:
       BuildMethod: esbuild

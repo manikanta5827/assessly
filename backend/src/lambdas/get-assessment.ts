@@ -13,7 +13,7 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
     return { statusCode: 200, headers, body: '' };
   }
 
-  const id = event.pathParameters?.id;
+  const id = event.queryStringParameters?.id;
 
   if (!id) {
     return {
@@ -40,33 +40,11 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
       statusCode: 200,
       headers,
       body: JSON.stringify({
-        id: assessment.id,
-        repoUrl: assessment.repoUrl,
-        status: assessment.status,
-
-        score: assessment.score || 0,
-
-        summary: assessment.summary || { goods: [], bads: [] },
-
-        aiUsageDetection: assessment.aiUsageDetection || null,
-
-        interviewQuestions: assessment.interviewQuestions || [],
-
-        testDetection: assessment.testDetection || {
-          hasTests: false,
-          language: null,
-          framework: 'unknown',
-          command: null,
-        },
-
-        testExecuted: assessment.testExecuted,
-        testResults: assessment.testResults,
-
-        createdAt: assessment.createdAt,
-        updatedAt: assessment.updatedAt,
-
-        // Optional: only include if needed
-        // repoMap: assessment.repoMap,
+        ...assessment,
+        // Ensure some defaults for frontend safety if needed
+        score: assessment.score ?? 0,
+        summary: assessment.summary ?? { goods: [], bads: [] },
+        interviewQuestions: assessment.interviewQuestions ?? [],
       }),
     };
   } catch (error: unknown) {
