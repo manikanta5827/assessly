@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { User } from '@supabase/supabase-js';
+import type { User } from '@supabase/supabase-js';
 
 interface AssessmentResult {
   assessmentId: string;
@@ -46,6 +46,7 @@ export const useAssesslyStore = create<AssesslyState>((set) => ({
   result: null,
   isLoading: false,
   error: null,
+  setUser: (user) => set({ user }),
   setAssessmentDoc: (assessmentDoc) => set({ assessmentDoc }),
   setRepoUrl: (repoUrl) => set({ repoUrl }),
   setResult: (result) => set({ result }),
