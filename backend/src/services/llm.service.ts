@@ -67,18 +67,14 @@ You are an expert requirement engineer. Your task is to extract clear, testable,
 [
   {{
     "id": "REQ_1",
+    "text": "User authentication - Implement secure sign-in/up using JWT.",
     "category": "Feature",
-    "text": "User authentication",
-    "detail": "Implement secure sign-in and sign-up functionality using JWT or session-based auth.",
-    "importance": 9,
     "suggestedFiles": ["src/services/auth.service.ts", "src/controllers/auth.controller.ts"]
   }},
   {{
     "id": "REQ_2",
+    "text": "API Documentation - Provide Swagger or README endpoints guide.",
     "category": "Documentation",
-    "text": "API Documentation",
-    "detail": "Provide a Swagger/OpenAPI specification or a detailed README explaining all endpoints.",
-    "importance": 7,
     "suggestedFiles": ["README.md", "openapi.yaml"]
   }}
 ]
@@ -91,7 +87,8 @@ You are an expert requirement engineer. Your task is to extract clear, testable,
     const response = (await chain.invoke({ instructions })) as BaseMessage;
     const usage = this.calculateUsage(response);
 
-    const content = typeof response.content === 'string' ? response.content : JSON.stringify(response.content);
+    const content =
+      typeof response.content === 'string' ? response.content : JSON.stringify(response.content);
     const jsonStr = content.match(/\[[\s\S]*\]/)?.[0] || content;
 
     return {
@@ -134,7 +131,8 @@ You are a senior developer analyzing a codebase. Generate a JSON map of filename
     const response = (await chain.invoke({ repoSnapshot })) as BaseMessage;
     const usage = this.calculateUsage(response);
 
-    const content = typeof response.content === 'string' ? response.content : JSON.stringify(response.content);
+    const content =
+      typeof response.content === 'string' ? response.content : JSON.stringify(response.content);
     const jsonStr = content.match(/\{[\s\S]*\}/)?.[0] || content;
 
     return {
@@ -146,7 +144,7 @@ You are a senior developer analyzing a codebase. Generate a JSON map of filename
   async analyzeAssessment(
     repoSnapshot: string,
     instructions: string,
-    requirements: any[],
+    requirements: any[]
   ): Promise<{ analysis: any; usage: LLMUsageStats | null }> {
     console.log(`[LLMService] Starting analyzeAssessment... (${requirements.length} requirements)`);
     const prompt = PromptTemplate.fromTemplate(`
@@ -234,9 +232,9 @@ Return this exact JSON structure:
 }}
 `);
 
-    const requirementsList = requirements.map(r => 
-      `- [${r.id}] [Category: ${r.category}] [Importance: ${r.importance}/10] ${r.text}: ${r.detail || ''}`
-    ).join('\n');
+    const requirementsList = requirements
+      .map((r) => `- [${r.id}] [${r.category}] ${r.text}`)
+      .join('\n');
 
     const chain = prompt.pipe(this.model);
     const response = (await chain.invoke({
@@ -246,7 +244,8 @@ Return this exact JSON structure:
     })) as BaseMessage;
 
     const usage = this.calculateUsage(response);
-    const content = typeof response.content === 'string' ? response.content : JSON.stringify(response.content);
+    const content =
+      typeof response.content === 'string' ? response.content : JSON.stringify(response.content);
     const jsonStr = content.match(/\{[\s\S]*\}/)?.[0] || content;
 
     return {
@@ -268,8 +267,8 @@ Return this exact JSON structure:
     const outputTokens = usage.output_tokens || usage.completionTokens || 0;
 
     // Extract cached tokens - common paths for OpenAI and Anthropic in LangChain
-    const cachedTokens = 
-      usage.input_token_details?.cache_read || 
+    const cachedTokens =
+      usage.input_token_details?.cache_read ||
       (response as any).response_metadata?.tokenUsage?.prompt_tokens_details?.cached_tokens ||
       usage.cache_read_input_tokens || // Anthropic specific
       0;
@@ -286,7 +285,9 @@ Return this exact JSON structure:
     console.log(`[LLMService] Usage - Provider: ${this.provider}, Model: ${this.modelName}`);
     console.log(`[LLMService] Input Tokens:  ${inputTokens}`);
     if (cachedTokens > 0) {
-      console.log(`[LLMService] Cached Tokens: ${cachedTokens} (SAVED $${((cachedTokens / 1_000_000) * modelPricing.input * 0.5).toFixed(4)})`);
+      console.log(
+        `[LLMService] Cached Tokens: ${cachedTokens} (SAVED $${((cachedTokens / 1_000_000) * modelPricing.input * 0.5).toFixed(4)})`
+      );
     }
     console.log(`[LLMService] Output Tokens: ${outputTokens}`);
     console.log(`[LLMService] Total Tokens:  ${inputTokens + outputTokens}`);

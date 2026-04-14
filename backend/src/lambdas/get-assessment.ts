@@ -39,19 +39,30 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
       };
     }
 
-    const { repoSnapshot: _repoSnapshot, ...rest } = assessment;
-
     return {
       statusCode: 200,
       headers,
       body: JSON.stringify({
-        ...rest,
+        assessmentId: assessment.id,
+        userId: assessment.userId,
+        repoUrl: assessment.repoUrl,
+        requirementsText: assessment.requirementsText,
+        status: assessment.status,
         score: assessment.score ?? 0,
         summary: assessment.summary ?? '',
+        aiUsageDetection: assessment.aiUsageDetection,
         requirements: assessment.requirements || [],
         requirementsEvaluation: assessment.requirementsEvaluation || [],
         interviewQuestions: assessment.interviewQuestions || [],
         testDetection: assessment.testDetection || { hasTests: false },
+        testExecuted: assessment.testExecuted,
+        testResults: assessment.testResults,
+        inputTokens: assessment.inputTokens,
+        outputTokens: assessment.outputTokens,
+        totalTokens: assessment.totalTokens,
+        estimatedCost: assessment.estimatedCost,
+        createdAt: assessment.createdAt,
+        updatedAt: assessment.updatedAt,
       }),
     };
   } catch (error: unknown) {
