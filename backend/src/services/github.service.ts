@@ -17,7 +17,7 @@ export class GitHubService {
     };
   }
 
-  async buildContext(owner: string, repo: string): Promise<string> {
+  async buildContext(owner: string, repo: string): Promise<{ context: string; fileNames: string[] }> {
     const zipUrl = `https://api.github.com/repos/${owner}/${repo}/zipball/HEAD`;
 
     console.log('Fetching zipUrl: ', zipUrl);
@@ -41,8 +41,9 @@ export class GitHubService {
     }
 
     const contextLines: string[] = [];
+    const fileNames: string[] = [];
     console.log('Processing zip content...');
-    
+
     try {
       const buffer = Buffer.from(await response.arrayBuffer());
       const directory = await unzipper.Open.buffer(buffer);
@@ -50,7 +51,7 @@ export class GitHubService {
       let filesProcessed = 0;
       for (const entry of directory.files) {
         const rawPath: string = entry.path;
-        const entryType: string = entry.type; 
+        const entryType: string = entry.type;
 
         if (entryType === 'Directory') continue;
 
@@ -65,11 +66,14 @@ export class GitHubService {
         // check file size
         const MAX_FILE_BYTES = 1 * 1024 * 1024; // 1MB safely
         if (entry.uncompressedSize > MAX_FILE_BYTES) {
-          console.warn(`[GitHubService] Skipping large file: ${cleanedPath} (${(entry.uncompressedSize / 1024).toFixed(1)} KB)`);
+          console.warn(
+            `[GitHubService] Skipping large file: ${cleanedPath} (${(entry.uncompressedSize / 1024).toFixed(1)} KB)`
+          );
           continue;
         }
 
         filesProcessed++;
+        fileNames.push(cleanedPath);
         console.log(`Extracting: ${cleanedPath} (${entry.uncompressedSize} bytes)`);
 
         const content = await entry.buffer();
@@ -77,7 +81,7 @@ export class GitHubService {
       }
 
       console.log(`Done. Processed ${filesProcessed} source files.`);
-      return contextLines.join('\n');
+      return { context: contextLines.join('\n'), fileNames };
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
       console.log('Error processing zip content: ', errorMessage);

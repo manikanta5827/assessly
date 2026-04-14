@@ -34,12 +34,12 @@ export const handler = async (event: SQSEvent) => {
       // 4. Process Repo
       const { owner, repo } = github.parseUrl(assessment.repoUrl);
       console.log(`Building context for ${owner}/${repo}...`);
-      const context = await github.buildContext(owner, repo);
+      const { context, fileNames } = await github.buildContext(owner, repo);
       console.log(`Context built. Length: ${context.length} characters.`);
 
       // 5. AI Analysis
       console.log(`Starting AI Analysis for assessmentId: ${assessmentId}...`);
-      const { analysis, usage } = await llm.analyzeAssessment(context, assessment.requirementsText);
+      const { analysis, usage } = await llm.analyzeAssessment(context, assessment.requirementsText, fileNames);
 
       console.log('Analysis Done for assessmentId: ', assessmentId);
       await prisma.assessment.update({

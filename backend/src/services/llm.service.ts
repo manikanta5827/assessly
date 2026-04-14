@@ -50,7 +50,8 @@ export class LLMService {
 
   async analyzeAssessment(
     repoSnapshot: string,
-    instructions: string
+    instructions: string,
+    fileNames: string[]
   ): Promise<{ analysis: any; usage: LLMUsageStats | null }> {
     const prompt = PromptTemplate.fromTemplate(`
 You are a senior software engineer and technical interviewer with 15+ years of experience.
@@ -121,13 +122,11 @@ Return this exact JSON structure:
 
   "repoMap": {{
     "tree": [
-      "<file path 1>",
-      "<file path 2>"
+      ${fileNames.map((fileName) => `<file path ${fileName}>`).join(',')}
     ],
     "files": {{
       "<actual file path from tree>": {{
-        "summary": "<one sentence describing what this file does>",
-        "size": <size in bytes as a number>
+        "summary": "<1-3 sentences describing what this file does>"
       }}
     }}
   }}
