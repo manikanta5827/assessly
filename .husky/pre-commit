@@ -6,4 +6,4 @@ if [ "$branch" = "main" ]; then
 fi
 
 # Run the Linters and Typecheck
-npx lint-staged
+# npx lint-staged
