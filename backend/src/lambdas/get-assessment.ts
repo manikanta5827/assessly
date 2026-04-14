@@ -43,7 +43,8 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
         ...assessment,
         // Ensure some defaults for frontend safety if needed
         score: assessment.score ?? 0,
-        summary: assessment.summary ?? { goods: [], bads: [] },
+        summaryText: assessment.summaryText ?? '',
+        codeReview: assessment.codeReview ?? { goods: [], bads: [] },
         interviewQuestions: assessment.interviewQuestions ?? [],
       }),
     };

@@ -56,12 +56,13 @@ export const handler = async (event: SQSEvent) => {
 
           // New improved fields
           aiUsageDetection: analysis.aiUsageDetection,
-
-          summary: {
+          summaryText: analysis.summary || '',
+          codeReview: {
             goods: analysis.goods || [],
             bads: analysis.bads || [],
           },
-
+          repoSnapshot: context, 
+          
           interviewQuestions: analysis.interviewQuestions || [],
 
           testDetection: {

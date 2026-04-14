@@ -48,66 +48,91 @@ export class LLMService {
     }
   }
 
-  async analyzeAssessment(repoSnapshot: string, instructions: string): Promise<{ analysis: any; usage: LLMUsageStats | null }> {
+  async analyzeAssessment(
+    repoSnapshot: string,
+    instructions: string
+  ): Promise<{ analysis: any; usage: LLMUsageStats | null }> {
     const prompt = PromptTemplate.fromTemplate(`
-      You are an expert senior software engineer and technical interviewer with 15+ years of experience reviewing candidate take-home assignments.
+You are a senior software engineer and technical interviewer with 15+ years of experience.
+Your job is to evaluate a candidate's take-home assignment submission.
 
-      Analyze the candidate's GitHub repository against the given assessment requirements.
+### Assessment Requirements:
+{assessmentText}
 
-      ### Assessment Requirements:
-      {assessmentText}
+### Candidate's Code Snapshot:
+{repoSnapshot}
 
-      ### Candidate Repository Snapshot:
-      {repoSnapshot}
+---
 
-      ### Instructions:
-      - Be strict, fair, and objective.
-      - Focus on how well the candidate fulfilled the actual requirements.
-      - Consider code quality, structure, edge cases, security, and best practices.
-      - Detect if the code looks heavily AI-generated (Cursor/Claude style) vs human-written.
+### Evaluation Rules:
+- Be strict and objective. Score 90+ only for genuinely excellent work.
+- Judge how well the candidate fulfilled the SPECIFIC requirements above.
+- Consider: code quality, architecture, security, edge cases, and best practices.
+- For AI detection: look for generic comments, uniform style, cookie-cutter patterns, and lack of personal problem-solving traces.
 
-      Return **ONLY** a valid JSON object with the following exact structure. Do not add any extra text or explanation.
+---
 
-      {{
-        "score": number,                    // 0-100, be strict. 90+ only for excellent implementations
-        "aiUsageDetection": {{
-          "score": number,                  // 0-100 (0 = fully human, 100 = heavily AI-generated)
-          "confidence": number,             // 0-100
-          "reasoning": string               // short explanation
-        }},
-        "summary": string,                  // 2-4 sentence overall assessment
-        "goods": [                          // max 6 items - what was done very well
-          string
-        ],
-        "bads": [                           // max 8 items - missing, incomplete, or poor implementations
-          string
-        ],
-        "interviewQuestions": [             // 2 to 4 high-quality, targeted questions
-          {{
-            "question": string,
-            "rationale": string,            // why this question is important
-            "focusArea": string             // e.g. "Authentication", "Error Handling", "Performance"
-          }}
-        ],
-        "testDetection": {{
-          "hasTests": boolean,
-          "language": "node" | "python" | "go" | "unknown" | null,
-          "framework": "jest" | "vitest" | "mocha" | "pytest" | "go test" | "unknown" | null,
-          "command": string | null,         // exact command to run, e.g. "npm test", "pytest", "go test ./..."
-          "path": string | null,            // folder where tests are located
-          "reason": string                  // how you detected it
-        }},
-        "repoMap": {{                        // For future vectorless RAG - keep it lightweight
-          "tree": string[],                 // array of all important file paths
-          "files": {{
-            "path/to/file.ts": {{
-              "summary": string,            // one short sentence describing the file
-              "size": number                // size in bytes
-            }}
-          }}
-        }}
+### CRITICAL OUTPUT RULES:
+- Return ONLY a raw JSON object. 
+- Do NOT wrap it in markdown, backticks, or code fences.
+- Do NOT add any explanation before or after the JSON.
+- Every field below is REQUIRED. Do not skip any field.
+
+---
+
+Return this exact JSON structure:
+
+{{
+  "score": <number 0-100, strict>,
+  "summary": "<2-4 sentence narrative overall assessment including code quality and requirement fulfillment>",
+
+  "aiUsageDetection": {{
+    "score": <number 0-100, where 0 = fully human, 100 = fully AI-generated>,
+    "confidence": <number 0-100>,
+    "reasoning": "<one short sentence explaining why>"
+  }},
+
+  "goods": [
+    "<string: something done well>",
+    "<string: something done well>"
+  ],
+
+  "bads": [
+    "<string: something missing or poorly done>",
+    "<string: something missing or poorly done>"
+  ],
+
+  "interviewQuestions": [
+    {{
+      "question": "<specific question to ask the candidate>",
+      "focusArea": "<e.g. Authentication, Error Handling, Performance>",
+      "rationale": "<one sentence: why this question matters for this candidate>"
+    }}
+  ],
+
+  "testDetection": {{
+    "hasTests": <true or false>,
+    "language": "<one of: node, python, go, unknown>",
+    "framework": "<one of: jest, vitest, mocha, pytest, go test, unknown>",
+    "command": "<exact command string to run tests, e.g. npm test>",
+    "path": "<folder path where tests are located, e.g. tests/ or __tests__>",
+    "reason": "<one sentence: how you detected the test setup>"
+  }},
+
+  "repoMap": {{
+    "tree": [
+      "<file path 1>",
+      "<file path 2>"
+    ],
+    "files": {{
+      "<actual file path from tree>": {{
+        "summary": "<one sentence describing what this file does>",
+        "size": <size in bytes as a number>
       }}
-      `);
+    }}
+  }}
+}}
+`);
 
     const chain = prompt.pipe(this.model);
     const response = (await chain.invoke({
@@ -123,15 +148,16 @@ export class LLMService {
 
     // Basic cleanup of JSON if LLM includes markdown blocks
     const jsonStr = content.match(/\{[\s\S]*\}/)?.[0] || content;
-    
+
     return {
       analysis: JSON.parse(jsonStr),
-      usage
+      usage,
     };
   }
 
   private calculateUsage(response: BaseMessage): LLMUsageStats | null {
-    const usage = (response as any).usage_metadata || (response as any).response_metadata?.tokenUsage;
+    const usage =
+      (response as any).usage_metadata || (response as any).response_metadata?.tokenUsage;
 
     if (!usage) {
       console.log('[LLMService] No usage metadata found in response.');
@@ -161,7 +187,7 @@ export class LLMService {
       inputTokens,
       outputTokens,
       totalTokens: inputTokens + outputTokens,
-      estimatedCost: totalCost
+      estimatedCost: totalCost,
     };
   }
 }

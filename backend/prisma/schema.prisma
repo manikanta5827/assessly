@@ -27,7 +27,8 @@ model Assessment {
 
   score              Int?
   aiUsageDetection   Json? @map("ai_usage_detection") // { score: number, confidence: number, reasoning: string }
-  summary            Json? // { goods: string[], bads: string[] }  ← Changed to object
+  summaryText String? @map("summary_text")
+  codeReview  Json?   @map("code_review") // { goods: string[], bads: string[] }
   interviewQuestions Json? @map("interview_questions") // array of objects
   testDetection      Json? @map("test_detection")
   repoMap            Json? @map("repo_map")
