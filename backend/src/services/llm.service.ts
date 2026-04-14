@@ -256,34 +256,46 @@ Return this exact JSON structure:
   }
 
   private calculateUsage(response: BaseMessage): LLMUsageStats | null {
-    const usage =
-      (response as any).usage_metadata || (response as any).response_metadata?.tokenUsage;
+    // Try to get standardized usage first, then fall back to response_metadata
+    const usageMetadata = (response as any).usage_metadata;
+    const tokenUsage = (response as any).response_metadata?.tokenUsage;
+    const usage = usageMetadata || tokenUsage;
 
     if (!usage) {
       console.log('[LLMService] No usage metadata found in response.');
       return null;
     }
 
-    const inputTokens = usage.input_tokens || usage.promptTokens || 0;
-    const outputTokens = usage.output_tokens || usage.completionTokens || 0;
+    // Input and Output tokens extraction
+    const inputTokens =
+      usage.input_tokens || usage.prompt_tokens || usage.promptTokens || 0;
+    const outputTokens =
+      usage.output_tokens || usage.completion_tokens || usage.completionTokens || 0;
 
-    // Extract cached tokens - common paths for OpenAI and Anthropic in LangChain
+    // Extract cached tokens - supporting multiple paths for OpenAI/Anthropic and LangChain versions
     const cachedTokens =
       usage.input_token_details?.cache_read ||
-      (response as any).response_metadata?.tokenUsage?.prompt_tokens_details?.cached_tokens ||
-      usage.cache_read_input_tokens || // Anthropic specific
+      usageMetadata?.input_token_details?.cache_read_input_tokens ||
+      usage.prompt_tokens_details?.cached_tokens ||
+      usage.promptTokensDetails?.cachedTokens || // As reported by user
+      tokenUsage?.prompt_tokens_details?.cached_tokens ||
+      tokenUsage?.promptTokensDetails?.cachedTokens ||
+      usage.cache_read_input_tokens ||
       0;
 
     // Get pricing
     const providerPricing = (this.PRICING as any)[this.provider];
-    const modelPricing = providerPricing?.[this.modelName] || { input: 0, output: 0 };
+    const modelPricing =
+      providerPricing?.[this.modelName] || { input: 0, output: 0 };
 
     const inputCost = (inputTokens / 1_000_000) * modelPricing.input;
     const outputCost = (outputTokens / 1_000_000) * modelPricing.output;
     const totalCost = inputCost + outputCost;
 
     console.log('--------------------------------------------------');
-    console.log(`[LLMService] Usage - Provider: ${this.provider}, Model: ${this.modelName}`);
+    console.log(
+      `[LLMService] Usage - Provider: ${this.provider}, Model: ${this.modelName}`
+    );
     console.log(`[LLMService] Input Tokens:  ${inputTokens}`);
     if (cachedTokens > 0) {
       console.log(
