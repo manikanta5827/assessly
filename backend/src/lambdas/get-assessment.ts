@@ -43,11 +43,13 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
       headers,
       body: JSON.stringify({
         ...rest,
-        // Ensure some defaults for frontend safety if needed
         score: assessment.score ?? 0,
-        summaryText: assessment.summaryText ?? '',
-        codeReview: assessment.codeReview ?? { goods: [], bads: [] },
-        interviewQuestions: assessment.interviewQuestions ?? [],
+        summary: assessment.summary ?? '',
+        requirements: assessment.requirements || [],
+        requirementsEvaluation: assessment.requirementsEvaluation || [],
+        interviewQuestions: assessment.interviewQuestions || [],
+        testDetection: assessment.testDetection || { hasTests: false },
+        repoMap: assessment.repoMap || { tree: [], files: {} },
       }),
     };
   } catch (error: unknown) {
