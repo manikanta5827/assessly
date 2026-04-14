@@ -15,7 +15,7 @@ Parameters:
 # --- GLOBALS
 Globals:
   Function:
-    Runtime: nodejs24.x
+    Runtime: nodejs22.x
     Architectures:
       - arm64
     Environment:
@@ -144,11 +144,20 @@ Resources:
       RetentionInDays: 3
 
   # --- SQS QUEUE
+  ProcessDLQ:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub "${Stage}-AssesslyProcessDLQ"
+      MessageRetentionPeriod: 1209600 # 14 days
+
   ProcessQueue:
     Type: AWS::SQS::Queue
     Properties:
       VisibilityTimeout: 300
       QueueName: !Sub "${Stage}-AssesslyProcessQueue"
+      RedrivePolicy:
+        deadLetterTargetArn: !GetAtt ProcessDLQ.Arn
+        maxReceiveCount: 1
 
   # --- API GATEWAY
   APIGateway:
