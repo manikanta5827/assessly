@@ -7,7 +7,7 @@
     "lint:backend": "npm run lint --prefix backend",
     "typecheck:backend": "npm run typecheck --prefix backend",
     "validate:backend": "sam validate --lint -t backend/template.yaml",
-    "build:backend": "cd backend && sam build --cached --parallel",
+    "build:backend": "npm run build --prefix backend",
     "build:frontend": "npm run build --prefix frontend",
     "lint:frontend": "npm run lint --prefix frontend",
     "typecheck:frontend": "npm run typecheck --prefix frontend"

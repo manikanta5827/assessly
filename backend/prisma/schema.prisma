@@ -34,8 +34,6 @@ model Assessment {
 
   testExecuted Boolean @default(false) @map("test_executed")
   testResults  Json?   @map("test_results")
-
-  rawLlmResponse Json? @map("raw_llm_response")
   
   // Usage tracking
   inputTokens   Int?     @map("input_tokens")

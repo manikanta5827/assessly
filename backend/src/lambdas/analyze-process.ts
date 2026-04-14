@@ -74,9 +74,6 @@ export const handler = async (event: SQSEvent) => {
           },
 
           repoMap: analysis.repoMap || null,
-
-          // Optional: store raw LLM response for debugging
-          rawLlmResponse: analysis,
         },
       });
 
