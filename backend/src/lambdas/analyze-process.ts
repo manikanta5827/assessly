@@ -37,9 +37,29 @@ export const handler = async (event: SQSEvent) => {
       const { context, fileNames } = await github.buildContext(owner, repo);
       console.log(`Context built. Length: ${context.length} characters.`);
 
-      // 5. AI Analysis
-      console.log(`Starting AI Analysis for assessmentId: ${assessmentId}...`);
-      const { analysis, usage } = await llm.analyzeAssessment(context, assessment.requirementsText, fileNames);
+      // 5. AI Analysis - Multi-stage
+      console.log(`Starting Multi-stage AI Analysis for assessmentId: ${assessmentId}...`);
+      
+      // Stage 1: Parallel calls for requirements and repo map
+      const [reqResult, repoMapResult] = await Promise.all([
+        llm.extractRequirements(assessment.requirementsText),
+        llm.generateRepoMap(fileNames, context),
+      ]);
+
+      // Stage 2: Main assessment call
+      const { analysis, usage: mainUsage } = await llm.analyzeAssessment(
+        context,
+        assessment.requirementsText,
+        reqResult.requirements
+      );
+
+      // Aggregate Usage
+      const totalUsage = {
+        inputTokens: (reqResult.usage?.inputTokens || 0) + (repoMapResult.usage?.inputTokens || 0) + (mainUsage?.inputTokens || 0),
+        outputTokens: (reqResult.usage?.outputTokens || 0) + (repoMapResult.usage?.outputTokens || 0) + (mainUsage?.outputTokens || 0),
+        totalTokens: (reqResult.usage?.totalTokens || 0) + (repoMapResult.usage?.totalTokens || 0) + (mainUsage?.totalTokens || 0),
+        estimatedCost: (reqResult.usage?.estimatedCost || 0) + (repoMapResult.usage?.estimatedCost || 0) + (mainUsage?.estimatedCost || 0),
+      };
 
       console.log('Analysis Done for assessmentId: ', assessmentId);
       await prisma.assessment.update({
@@ -48,19 +68,17 @@ export const handler = async (event: SQSEvent) => {
           status: 'COMPLETED',
           score: analysis.score,
 
-          // Usage tracking
-          inputTokens: usage?.inputTokens,
-          outputTokens: usage?.outputTokens,
-          totalTokens: usage?.totalTokens,
-          estimatedCost: usage?.estimatedCost ? new Prisma.Decimal(usage.estimatedCost) : null,
+          // Usage tracking (aggregated)
+          inputTokens: totalUsage.inputTokens,
+          outputTokens: totalUsage.outputTokens,
+          totalTokens: totalUsage.totalTokens,
+          estimatedCost: new Prisma.Decimal(totalUsage.estimatedCost),
 
           // New improved fields
           aiUsageDetection: analysis.aiUsageDetection,
-          summaryText: analysis.summary || '',
-          codeReview: {
-            goods: analysis.goods || [],
-            bads: analysis.bads || [],
-          },
+          summary: analysis.summary || '',
+          requirements: reqResult.requirements || [],
+          requirementsEvaluation: analysis.requirementsEvaluation || [],
           repoSnapshot: context, 
           
           interviewQuestions: analysis.interviewQuestions || [],
@@ -74,7 +92,7 @@ export const handler = async (event: SQSEvent) => {
             reason: analysis.testDetection?.reason || '',
           },
 
-          repoMap: analysis.repoMap || null,
+          repoMap: repoMapResult.repoMap || null,
         },
       });
 
