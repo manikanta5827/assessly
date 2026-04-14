@@ -36,11 +36,13 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
       };
     }
 
+    const { repoSnapshot: _repoSnapshot, ...rest } = assessment;
+
     return {
       statusCode: 200,
       headers,
       body: JSON.stringify({
-        ...assessment,
+        ...rest,
         // Ensure some defaults for frontend safety if needed
         score: assessment.score ?? 0,
         summaryText: assessment.summaryText ?? '',
