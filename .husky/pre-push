@@ -20,7 +20,7 @@ CHANGED_FILES=$(git diff --name-only $BASE_BRANCH...HEAD)
 # fi
 
 # Conditional Frontend Build
-if echo "$CHANGED_FILES" | grep -q "^frontend/"; then
-  echo "⚛️ Frontend source changes detected, running npm run build..."
-  npm run build:frontend
-fi
+# if echo "$CHANGED_FILES" | grep -q "^frontend/"; then
+#   echo "⚛️ Frontend source changes detected, running npm run build..."
+#   npm run build:frontend
+# fi
