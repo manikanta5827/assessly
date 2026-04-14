@@ -44,13 +44,13 @@ export class LLMService {
 
       Return **ONLY** a valid JSON object with the following exact structure. Do not add any extra text or explanation.
 
-      {
+      {{
         "score": number,                    // 0-100, be strict. 90+ only for excellent implementations
-        "aiUsageDetection": {
+        "aiUsageDetection": {{
           "score": number,                  // 0-100 (0 = fully human, 100 = heavily AI-generated)
           "confidence": number,             // 0-100
           "reasoning": string               // short explanation
-        },
+        }},
         "summary": string,                  // 2-4 sentence overall assessment
         "goods": [                          // max 6 items - what was done very well
           string
@@ -59,30 +59,30 @@ export class LLMService {
           string
         ],
         "interviewQuestions": [             // 2 to 4 high-quality, targeted questions
-          {
+          {{
             "question": string,
             "rationale": string,            // why this question is important
             "focusArea": string             // e.g. "Authentication", "Error Handling", "Performance"
-          }
+          }}
         ],
-        "testDetection": {
+        "testDetection": {{
           "hasTests": boolean,
           "language": "node" | "python" | "go" | "unknown" | null,
           "framework": "jest" | "vitest" | "mocha" | "pytest" | "go test" | "unknown" | null,
           "command": string | null,         // exact command to run, e.g. "npm test", "pytest", "go test ./..."
           "path": string | null,            // folder where tests are located
           "reason": string                  // how you detected it
-        },
-        "repoMap": {                        // For future vectorless RAG - keep it lightweight
+        }},
+        "repoMap": {{                        // For future vectorless RAG - keep it lightweight
           "tree": string[],                 // array of all important file paths
-          "files": {
-            "path/to/file.ts": {
+          "files": {{
+            "path/to/file.ts": {{
               "summary": string,            // one short sentence describing the file
               "size": number                // size in bytes
-            }
-          }
-        }
-      }
+            }}
+          }}
+        }}
+      }}
       `);
 
     const chain = prompt.pipe(this.model);
