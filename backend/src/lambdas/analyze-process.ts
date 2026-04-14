@@ -32,11 +32,12 @@ export const handler = async (event: SQSEvent) => {
 
       // 4. Process Repo
       const { owner, repo } = github.parseUrl(assessment.repoUrl);
-      console.log('Processing repo for owner: ', owner, ' and repo: ', repo);
+      console.log(`Building context for ${owner}/${repo}...`);
       const context = await github.buildContext(owner, repo);
+      console.log(`Context built. Length: ${context.length} characters.`);
 
       // 5. AI Analysis
-      console.log('AI Analysis for assessmentId: ', assessmentId);
+      console.log(`Starting AI Analysis for assessmentId: ${assessmentId}...`);
       const analysis = await llm.analyzeAssessment(context, assessment.requirementsText);
 
       console.log('Analysis Done for assessmentId: ', assessmentId);
