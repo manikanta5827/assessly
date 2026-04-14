@@ -37,7 +37,7 @@ Resources:
       Environment:
         Variables:
           QUEUE_URL: !Ref ProcessQueue
-          DATABASE_URL: !Sub "{{resolve:ssm:/assessly/${Stage}/DATABASE_URL}}"
+          DATABASE_URL: !Sub '{{resolve:ssm:/assessly/${Stage}/DATABASE_URL}}'
       Timeout: 30
       Events:
         AnalyzeApi:
@@ -69,9 +69,9 @@ Resources:
         - AWSLambdaBasicExecutionRole
       Environment:
         Variables:
-          DATABASE_URL: !Sub "{{resolve:ssm:/assessly/${Stage}/DATABASE_URL}}"
-          GITHUB_TOKEN: !Sub "{{resolve:ssm:/assessly/${Stage}/GITHUB_TOKEN}}"
-          OPENAI_API_KEY: !Sub "{{resolve:ssm:/assessly/${Stage}/OPENAI_API_KEY}}"
+          DATABASE_URL: !Sub '{{resolve:ssm:/assessly/${Stage}/DATABASE_URL}}'
+          GITHUB_TOKEN: !Sub '{{resolve:ssm:/assessly/${Stage}/GITHUB_TOKEN}}'
+          OPENAI_API_KEY: !Sub '{{resolve:ssm:/assessly/${Stage}/OPENAI_API_KEY}}'
       Events:
         ProcessQueueEvent:
           Type: SQS
@@ -95,11 +95,12 @@ Resources:
     Properties:
       CodeUri: ./
       Handler: src/lambdas/get-assessment.handler
+      Timeout: 30
       Policies:
         - AWSLambdaBasicExecutionRole
       Environment:
         Variables:
-          DATABASE_URL: !Sub "{{resolve:ssm:/assessly/${Stage}/DATABASE_URL}}"  
+          DATABASE_URL: !Sub '{{resolve:ssm:/assessly/${Stage}/DATABASE_URL}}'
       Events:
         GetAssessmentApi:
           Type: Api
@@ -147,14 +148,14 @@ Resources:
   ProcessDLQ:
     Type: AWS::SQS::Queue
     Properties:
-      QueueName: !Sub "${Stage}-AssesslyProcessDLQ"
+      QueueName: !Sub '${Stage}-AssesslyProcessDLQ'
       MessageRetentionPeriod: 1209600 # 14 days
 
   ProcessQueue:
     Type: AWS::SQS::Queue
     Properties:
       VisibilityTimeout: 300
-      QueueName: !Sub "${Stage}-AssesslyProcessQueue"
+      QueueName: !Sub '${Stage}-AssesslyProcessQueue'
       RedrivePolicy:
         deadLetterTargetArn: !GetAtt ProcessDLQ.Arn
         maxReceiveCount: 1
