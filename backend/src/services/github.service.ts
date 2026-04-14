@@ -22,6 +22,7 @@ export class GitHubService {
   async buildContext(owner: string, repo: string): Promise<string> {
     const zipUrl = `https://api.github.com/repos/${owner}/${repo}/zipball/HEAD`;
 
+    console.log('Fetching zipUrl: ', zipUrl);
     const response = await fetch(zipUrl, {
       headers: {
         Authorization: `token ${this.token}`,
@@ -32,53 +33,64 @@ export class GitHubService {
 
     if (!response.ok) {
       const msg = await response.text();
+      console.log('GitHub fetch failed [${response.status}]: ${msg}');
       throw new Error(`GitHub fetch failed [${response.status}]: ${msg}`);
     }
 
-    if (!response.body) throw new Error('GitHub response body is empty');
+    if (!response.body) {
+      console.log('GitHub response body is empty');
+      throw new Error('GitHub response body is empty');
+    }
     const nodeStream = Readable.fromWeb(response.body as import('node:stream/web').ReadableStream);
     const contextLines: string[] = [];
 
-    await pipeline(
-      nodeStream,
+    console.log('Processing zipUrl: ', zipUrl);
+    try {
+      await pipeline(
+        nodeStream,
 
-      unzipper.Parse(),
+        unzipper.Parse(),
 
-      async function (this: GitHubService, source: AsyncIterable<unzipper.Entry>) {
-        for await (const entry of source) {
-          const rawPath: string = entry.path;
-          const entryType: string = entry.type; // 'File' or 'Directory'
+        async function (this: GitHubService, source: AsyncIterable<unzipper.Entry>) {
+          for await (const entry of source) {
+            const rawPath: string = entry.path;
+            const entryType: string = entry.type; // 'File' or 'Directory'
 
-          if (entryType === 'Directory') {
-            entry.autodrain(); // release the stream slot
-            continue;
+            if (entryType === 'Directory') {
+              entry.autodrain(); // release the stream slot
+              continue;
+            }
+
+            const cleanedPath = rawPath.split('/').slice(1).join('/');
+
+            if (!this.isSourceFile(cleanedPath)) {
+              entry.autodrain(); // ← skip, zero RAM cost
+              continue;
+            }
+
+            const uncompressedSize: number = entry.extra?.uncompressedSize ?? 0;
+            const MAX_FILE_BYTES = 100 * 1024; // 100 KB
+
+            if (uncompressedSize > MAX_FILE_BYTES) {
+              console.warn(
+                `[GitHubService] Skipping large file: ${cleanedPath} (${(uncompressedSize / 1024).toFixed(1)} KB)`
+              );
+              entry.autodrain();
+              continue;
+            }
+
+            const content = await entry.buffer();
+            contextLines.push(`--- FILE: ${cleanedPath} ---\n${content.toString('utf8')}\n`);
           }
+        }.bind(this)
+      );
 
-          const cleanedPath = rawPath.split('/').slice(1).join('/');
-
-          if (!this.isSourceFile(cleanedPath)) {
-            entry.autodrain(); // ← skip, zero RAM cost
-            continue;
-          }
-
-          const uncompressedSize: number = entry.extra?.uncompressedSize ?? 0;
-          const MAX_FILE_BYTES = 100 * 1024; // 100 KB
-
-          if (uncompressedSize > MAX_FILE_BYTES) {
-            console.warn(
-              `[GitHubService] Skipping large file: ${cleanedPath} (${(uncompressedSize / 1024).toFixed(1)} KB)`
-            );
-            entry.autodrain();
-            continue;
-          }
-
-          const content = await entry.buffer();
-          contextLines.push(`--- FILE: ${cleanedPath} ---\n${content.toString('utf8')}\n`);
-        }
-      }.bind(this)
-    );
-
-    return contextLines.join('\n');
+      return contextLines.join('\n');
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      console.log('Error processing zipUrl: ', errorMessage);
+      throw error;
+    }
   }
 
   private isSourceFile(filePath: string): boolean {

@@ -18,7 +18,7 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
   }
 
   try {
-    console.log('Processing Trigger: ', event);
+    console.log('Processing Trigger');
 
     const body = JSON.parse(event.body || '{}');
     const { repoUrl, requirementsText, userId } = body;
