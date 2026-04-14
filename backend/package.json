@@ -4,10 +4,11 @@
   "description": "Assessly Backend - AWS SAM",
   "main": "index.js",
   "scripts": {
-    "build": "sam validate --lint && sam build --cached --parallel",
-    "deploy": "sam deploy --no-confirm-changeset",
+    "build": "prisma generate && sam validate --lint && sam build --parallel",
+    "deploy": "sam deploy --config-env dev --no-confirm-changeset",
     "lambda": "sam local start-api --warm-containers EAGER --env-vars env.json",
     "delete": "aws cloudformation delete-stack --stack-name assessly-backend",
+    "lambda:sync": "sam sync --watch --stack-name Assessly-Dev",
     "fetch-env": "bash scripts/fetch-env.sh",
     "postinstall": "prisma generate",
     "prisma:generate": "prisma generate",

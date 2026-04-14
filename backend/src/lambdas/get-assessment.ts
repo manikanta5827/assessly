@@ -2,6 +2,7 @@ import { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
 import { prisma } from '../db/prisma';
 
 export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> => {
+  console.log(`processing get assessment`);
   const headers = {
     'Access-Control-Allow-Origin': '*',
     'Access-Control-Allow-Methods': 'GET, OPTIONS',
@@ -13,7 +14,7 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
     return { statusCode: 200, headers, body: '' };
   }
 
-  const id = event.pathParameters?.id;
+  const id = event.queryStringParameters?.id;
 
   if (!id) {
     return {
@@ -24,9 +25,11 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
   }
 
   try {
+    console.time('db');
     const assessment = await prisma.assessment.findUnique({
       where: { id },
     });
+    console.timeEnd('db');
 
     if (!assessment) {
       return {
@@ -40,33 +43,26 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
       statusCode: 200,
       headers,
       body: JSON.stringify({
-        id: assessment.id,
+        assessmentId: assessment.id,
+        userId: assessment.userId,
         repoUrl: assessment.repoUrl,
+        requirementsText: assessment.requirementsText,
         status: assessment.status,
-
-        score: assessment.score || 0,
-
-        summary: assessment.summary || { goods: [], bads: [] },
-
-        aiUsageDetection: assessment.aiUsageDetection || null,
-
+        score: assessment.score ?? 0,
+        summary: assessment.summary ?? '',
+        aiUsageDetection: assessment.aiUsageDetection,
+        requirements: assessment.requirements || [],
+        requirementsEvaluation: assessment.requirementsEvaluation || [],
         interviewQuestions: assessment.interviewQuestions || [],
-
-        testDetection: assessment.testDetection || {
-          hasTests: false,
-          language: null,
-          framework: 'unknown',
-          command: null,
-        },
-
+        testDetection: assessment.testDetection || { hasTests: false },
         testExecuted: assessment.testExecuted,
         testResults: assessment.testResults,
-
+        inputTokens: assessment.inputTokens,
+        outputTokens: assessment.outputTokens,
+        totalTokens: assessment.totalTokens,
+        estimatedCost: assessment.estimatedCost,
         createdAt: assessment.createdAt,
         updatedAt: assessment.updatedAt,
-
-        // Optional: only include if needed
-        // repoMap: assessment.repoMap,
       }),
     };
   } catch (error: unknown) {

@@ -22,8 +22,8 @@ const Results: React.FC = () => {
 
       try {
         const GET_URL = import.meta.env.VITE_API_URL 
-          ? `${import.meta.env.VITE_API_URL.replace('/analyze', `/assessment/${id}`)}` 
-          : `http://localhost:3000/Prod/assessment/${id}`;
+          ? `${import.meta.env.VITE_API_URL.replace('/analyze', `/assessment?id=${id}`)}` 
+          : `http://localhost:3000/Prod/assessment?id=${id}`;
 
         const response = await axios.get(GET_URL);
         setResult(response.data);

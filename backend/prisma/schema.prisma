@@ -26,16 +26,22 @@ model Assessment {
   status AssessmentStatus @default(PENDING)
 
   score              Int?
-  aiUsageDetection   Json? @map("ai_usage_detection") // { score: number, confidence: number, reasoning: string }
-  summary            Json? // { goods: string[], bads: string[] }  ← Changed to object
-  interviewQuestions Json? @map("interview_questions") // array of objects
+  aiUsageDetection   Json? @map("ai_usage_detection")
+  summary            String? @map("summary")
+  requirements       Json?   @map("requirements")
+  requirementsEvaluation Json? @map("requirements_evaluation")
+  interviewQuestions Json? @map("interview_questions")
   testDetection      Json? @map("test_detection")
   repoMap            Json? @map("repo_map")
 
   testExecuted Boolean @default(false) @map("test_executed")
   testResults  Json?   @map("test_results")
-
-  rawLlmResponse Json? @map("raw_llm_response")
+  
+  // Usage tracking
+  inputTokens   Int?     @map("input_tokens")
+  outputTokens  Int?     @map("output_tokens")
+  totalTokens   Int?     @map("total_tokens")
+  estimatedCost Decimal? @map("estimated_cost") @db.Decimal(10, 6)
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @default(now()) @updatedAt @map("updated_at")

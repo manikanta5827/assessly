@@ -18,6 +18,8 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
   }
 
   try {
+    console.log('Processing Trigger');
+
     const body = JSON.parse(event.body || '{}');
     const { repoUrl, requirementsText, userId } = body;
 
@@ -30,28 +32,39 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
     }
 
     const ip = event.requestContext.identity.sourceIp || 'unknown';
+
+    console.log('IP for user: ', userId, ' is ', ip);
     const ipHash = crypto.createHash('sha256').update(ip).digest('hex');
 
     // 1. Check IP Limits for guest users
     if (!userId) {
-      const tracking = await prisma.ipTracking.findUnique({
-        where: { ipHash },
-      });
+      console.log('Checking IP limits for guest user with ip: ', ip);
+      try {
+        const tracking = await prisma.ipTracking.findUnique({
+          where: { ipHash },
+        });
+        console.log('Tracking for ip: ', ip, ' is ', tracking?.assessmentCount);
 
-      if (tracking && tracking.assessmentCount >= 1) {
-        return {
-          statusCode: 403,
-          headers,
-          body: JSON.stringify({
-            error: 'Free limit reached',
-            message:
-              'You have already performed one free assessment. Please sign in with Google to continue.',
-          }),
-        };
+        if (tracking && tracking.assessmentCount >= 1) {
+          console.log('Free limit reached for ip: ', ip);
+          return {
+            statusCode: 403,
+            headers,
+            body: JSON.stringify({
+              error: 'Free limit reached',
+              message:
+                'You have already performed one free assessment. Please sign in with Google to continue.',
+            }),
+          };
+        }
+      } catch (dbError) {
+        console.error('Database error checking IP limits:', dbError);
+        // We continue anyway to not block users if DB is temporarily down
       }
     }
 
     // 2. Create Assessment record (PENDING)
+    console.log('Creating assessment for ip: ', ip);
     const assessment = await prisma.assessment.create({
       data: {
         userId: userId || null,
@@ -64,6 +77,7 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
 
     // 3. Send message to SQS queue
     const queueUrl = process.env.QUEUE_URL;
+    console.log('Sending message to SQS queue for queueUrl: ', queueUrl);
     if (!queueUrl) {
       throw new Error('QUEUE_URL environment variable not set');
     }
@@ -85,6 +99,7 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
 
     // 4. Update IP Tracking for guests
     if (!userId) {
+      console.log('Updating IP Tracking for guest user with ip: ', ip);
       await prisma.ipTracking.upsert({
         where: { ipHash },
         update: { assessmentCount: { increment: 1 }, lastSeenAt: new Date() },

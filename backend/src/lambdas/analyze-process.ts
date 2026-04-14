@@ -1,9 +1,11 @@
 import { SQSEvent } from 'aws-lambda';
+import { Prisma } from '@prisma/client';
 import { prisma } from '../db/prisma';
 import { GitHubService } from '../services/github.service';
 import { LLMService } from '../services/llm.service';
 
 export const handler = async (event: SQSEvent) => {
+  console.log('Processing event: ', event);
   for (const record of event.Records) {
     const { assessmentId } = JSON.parse(record.body);
 
@@ -19,6 +21,7 @@ export const handler = async (event: SQSEvent) => {
       }
 
       // 2. Update status to PROCESSING
+      console.log('Updating status to PROCESSING for assessmentId: ', assessmentId);
       await prisma.assessment.update({
         where: { id: assessmentId },
         data: { status: 'PROCESSING' },
@@ -26,29 +29,58 @@ export const handler = async (event: SQSEvent) => {
 
       // 3. Initialize Services
       const github = new GitHubService(process.env.GITHUB_TOKEN);
-      const llm = new LLMService('openai', process.env.OPENAI_API_KEY!);
+      const llm = new LLMService('openai', process.env.OPENAI_API_KEY!, "gpt-4o-mini");
 
       // 4. Process Repo
       const { owner, repo } = github.parseUrl(assessment.repoUrl);
-      const context = await github.buildContext(owner, repo);
+      console.log(`Building context for ${owner}/${repo}...`);
+      const { context, fileNames } = await github.buildContext(owner, repo);
+      console.log(`Context built. Length: ${context.length} characters.`);
 
-      // 5. AI Analysis
-      const analysis = await llm.analyzeAssessment(context, assessment.requirementsText);
+      // 5. AI Analysis - Multi-stage
+      console.log(`Starting Multi-stage AI Analysis for assessmentId: ${assessmentId}...`);
+      
+      // Stage 1: Parallel calls for requirements and repo map
+      const [reqResult, repoMapResult] = await Promise.all([
+        llm.extractRequirements(assessment.requirementsText),
+        llm.generateRepoMap(fileNames, context),
+      ]);
 
+      // Stage 2: Main assessment call
+      const { analysis, usage: mainUsage } = await llm.analyzeAssessment(
+        context,
+        assessment.requirementsText,
+        reqResult.requirements
+      );
+
+      // Aggregate Usage
+      const totalUsage = {
+        inputTokens: (reqResult.usage?.inputTokens || 0) + (repoMapResult.usage?.inputTokens || 0) + (mainUsage?.inputTokens || 0),
+        outputTokens: (reqResult.usage?.outputTokens || 0) + (repoMapResult.usage?.outputTokens || 0) + (mainUsage?.outputTokens || 0),
+        totalTokens: (reqResult.usage?.totalTokens || 0) + (repoMapResult.usage?.totalTokens || 0) + (mainUsage?.totalTokens || 0),
+        estimatedCost: (reqResult.usage?.estimatedCost || 0) + (repoMapResult.usage?.estimatedCost || 0) + (mainUsage?.estimatedCost || 0),
+      };
+
+      console.log('Analysis Done for assessmentId: ', assessmentId);
       await prisma.assessment.update({
         where: { id: assessmentId },
         data: {
           status: 'COMPLETED',
           score: analysis.score,
 
+          // Usage tracking (aggregated)
+          inputTokens: totalUsage.inputTokens,
+          outputTokens: totalUsage.outputTokens,
+          totalTokens: totalUsage.totalTokens,
+          estimatedCost: new Prisma.Decimal(totalUsage.estimatedCost),
+
           // New improved fields
           aiUsageDetection: analysis.aiUsageDetection,
-
-          summary: {
-            goods: analysis.goods || [],
-            bads: analysis.bads || [],
-          },
-
+          summary: analysis.summary || '',
+          requirements: reqResult.requirements || [],
+          requirementsEvaluation: analysis.requirementsEvaluation || [],
+          repoSnapshot: context, 
+          
           interviewQuestions: analysis.interviewQuestions || [],
 
           testDetection: {
@@ -60,10 +92,7 @@ export const handler = async (event: SQSEvent) => {
             reason: analysis.testDetection?.reason || '',
           },
 
-          repoMap: analysis.repoMap || null,
-
-          // Optional: store raw LLM response for debugging
-          rawLlmResponse: analysis,
+          repoMap: repoMapResult.repoMap || null,
         },
       });
 
@@ -81,4 +110,3 @@ export const handler = async (event: SQSEvent) => {
     }
   }
 };
-
