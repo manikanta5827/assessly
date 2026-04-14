@@ -36,6 +36,12 @@ model Assessment {
   testResults  Json?   @map("test_results")
 
   rawLlmResponse Json? @map("raw_llm_response")
+  
+  // Usage tracking
+  inputTokens   Int?     @map("input_tokens")
+  outputTokens  Int?     @map("output_tokens")
+  totalTokens   Int?     @map("total_tokens")
+  estimatedCost Decimal? @map("estimated_cost") @db.Decimal(10, 6)
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @default(now()) @updatedAt @map("updated_at")
