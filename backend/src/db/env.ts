@@ -1,9 +1,30 @@
-import { z } from 'zod';
+interface Env {
+  DATABASE_URL: string;
+  GITHUB_TOKEN?: string;
+  OPENAI_API_KEY?: string;
+}
 
-const envSchema = z.object({
-  DATABASE_URL: z.string().url(),
-  GITHUB_TOKEN: z.string().optional(),
-  OPENAI_API_KEY: z.string().optional(),
-});
+const getEnv = (): Env => {
+  const { DATABASE_URL, GITHUB_TOKEN, OPENAI_API_KEY } = process.env;
 
-export const env = envSchema.parse(process.env);
+  if (!DATABASE_URL) {
+    throw new Error('DATABASE_URL is missing in environment variables');
+  }
+
+  if (!GITHUB_TOKEN) {
+    throw new Error('GITHUB_TOKEN is missing in environment variables');
+  }
+
+  if (!OPENAI_API_KEY) {
+    throw new Error('OPENAI_API_KEY is missing in environment variables');
+  }
+
+  return {
+    DATABASE_URL,
+    GITHUB_TOKEN,
+    OPENAI_API_KEY,
+  };
+};
+
+export const env = getEnv();
+
