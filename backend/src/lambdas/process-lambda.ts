@@ -181,7 +181,6 @@ export const handler = async (event: SQSEvent) => {
             uniformStyle: aiPatternsResult.analysis.signals?.uniformStyle || false,
             lowIterationEvidence: aiPatternsResult.analysis.signals?.lowIterationEvidence || false,
             genericPatterns: aiPatternsResult.analysis.signals?.genericPatterns || false,
-            commitMismatch: aiPatternsResult.analysis.signals?.commitMismatch || false,
             summary: aiPatternsResult.analysis.summary || '',
             reasoning: aiPatternsResult.analysis.reasoning || '',
           },
