@@ -14,6 +14,12 @@ import { eq } from 'drizzle-orm';
 export type AssessmentStatus = 'PENDING' | 'PROCESSING' | 'COMPLETED' | 'FAILED';
 
 export class AssessmentRepository {
+  async getAssessmentByRepoUrl(repoUrl: string) {
+    return await db.query.assessments.findFirst({
+      where: eq(assessments.repoUrl, repoUrl),
+    });
+  }
+
   async getAssessmentById(id: string) {
     return await db.query.assessments.findFirst({
       where: eq(assessments.id, id),

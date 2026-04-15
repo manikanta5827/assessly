@@ -36,6 +36,21 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
 
     const ip = event.requestContext.identity.sourceIp || 'unknown';
 
+    // 1. Check if assessment for this repo already exists
+    const existingAssessment = await assessmentRepo.getAssessmentByRepoUrl(repoUrl);
+    if (existingAssessment) {
+      console.log('Assessment already exists for repoUrl: ', repoUrl);
+      return {
+        statusCode: 409,
+        headers,
+        body: JSON.stringify({
+          error: 'Already exists',
+          message: 'An assessment for this repository already exists.',
+          assessmentId: existingAssessment.id,
+        }),
+      };
+    }
+
     console.log('IP for user: ', userId, ' is ', ip);
     const ipHash = crypto.createHash('sha256').update(ip).digest('hex');
 

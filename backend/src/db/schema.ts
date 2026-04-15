@@ -9,6 +9,7 @@ import {
   uuid,
   pgEnum,
   jsonb,
+  index,
 } from 'drizzle-orm/pg-core';
 import { relations, sql } from 'drizzle-orm';
 
@@ -52,6 +53,13 @@ export const assessments = pgTable('assessments', {
   estimatedCost: numeric('estimated_cost', { precision: 10, scale: 6 }),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+}, (table) => {
+  return [
+    index('repo_url_idx').on(table.repoUrl),
+    index('user_id_idx').on(table.userId),
+    index('ip_hash_idx').on(table.ipHash),
+    index('status_idx').on(table.status),
+  ];
 });
 
 export const ipTracking = pgTable('ip_tracking', {
@@ -74,6 +82,10 @@ export const projectRequirements = pgTable('project_requirements', {
   evidenceFile: text('evidence_file'),
   evidenceSnippet: text('evidence_snippet'),
   reasoning: text('reasoning'),
+}, (table) => {
+  return [
+    index('pr_assessment_id_idx').on(table.assessmentId),
+  ];
 });
 
 export const codeQuality = pgTable('code_quality', {
@@ -165,6 +177,10 @@ export const interviewQuestions = pgTable('interview_questions', {
     .references(() => assessments.id, { onDelete: 'cascade' }),
   question: text('question').notNull(),
   focusArea: text('focus_area').notNull(),
+}, (table) => {
+  return [
+    index('iq_assessment_id_idx').on(table.assessmentId),
+  ];
 });
 
 // --- Relations ---
