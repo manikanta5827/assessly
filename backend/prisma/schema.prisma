@@ -132,7 +132,6 @@ model AiAnalysis {
   score                Float
   confidence           Float
   summary              String
-  reasoning            String
 
   assessment Assessment @relation(fields: [assessmentId], references: [id], onDelete: Cascade)
 

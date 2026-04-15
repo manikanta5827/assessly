@@ -261,7 +261,6 @@ Your goal is to determine the probability that the provided code was generated b
   "score": 0-100, // Probability of being AI-generated (High = Likely AI)
   "confidence": 0-100, // Your confidence in this detection
   "summary": "1-sentence verdict on AI presence",
-  "reasoning": "Forensic breakdown of the markers found (NOT a code quality review)"
 }}
 `);
 

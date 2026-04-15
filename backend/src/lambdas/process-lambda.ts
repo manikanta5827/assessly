@@ -181,7 +181,6 @@ export const handler = async (event: SQSEvent) => {
             score: aiPatternsResult.analysis.score || 0,
             confidence: aiPatternsResult.analysis.confidence || 0,
             summary: aiPatternsResult.analysis.summary || '',
-            reasoning: aiPatternsResult.analysis.reasoning || '',
           },
         },
         commitAnalysis: {
