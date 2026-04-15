@@ -41,53 +41,85 @@ export const handler = async (event: SQSEvent) => {
       console.log(`Context built. Length: ${context.length} characters.`);
       console.log(`Fetched ${commitMessages.length} commit messages.`);
 
-      // 5. AI Analysis - Multi-stage
+      // 5. AI Analysis - Multi-stage Pipeline
       console.log(`Starting Multi-stage AI Analysis for assessmentId: ${assessmentId}...`);
       
-      // Stage 1: Parallel calls for requirements, repo map, and commit analysis
-      const [reqResult, repoMapResult, commitResult] = await Promise.all([
+      // STAGE 1: Parallel Analysis Calls
+      const [
+        reqResult,
+        repoMapResult,
+        commitResult,
+        codeQualityResult,
+        runnabilityResult,
+        aiPatternsResult
+      ] = await Promise.all([
         llm.extractRequirements(assessment.requirementsText),
         llm.generateRepoMap(fileNames, context),
         llm.analyzeCommits(commitMessages),
+        llm.analyzeCodeQuality(context),
+        llm.analyzeRunnability(context),
+        llm.analyzeAIPatterns(context),
       ]);
 
-      // Stage 2: Main assessment call
-      const { analysis, usage: mainUsage } = await llm.analyzeAssessment(
+      // STAGE 2: Requirement Evaluation (Sequential - depends on extracted requirements)
+      const requirementsEvalResult = await llm.evaluateRequirements(
         context,
-        assessment.requirementsText,
         reqResult.requirements
       );
 
+      // STAGE 3: Backend Scoring (Deterministic)
+      const requirementsEval = requirementsEvalResult.evaluation;
+      const totalRequirements = requirementsEval.length;
+      const metRequirements = requirementsEval.filter((r: any) => r.status === 'MET').length;
+      
+      const requirementScore = totalRequirements > 0 
+        ? (metRequirements / totalRequirements) * 100 
+        : 0;
+      
+      const codeQualityScore = codeQualityResult.analysis.score || 0;
+      const runnabilityScore = runnabilityResult.analysis.score || 0;
+
+      const finalScore = 
+        (requirementScore * 0.6) + 
+        (codeQualityScore * 0.25) + 
+        (runnabilityScore * 0.15);
+
+      // STAGE 4: Final LLM Report
+      const finalReportResult = await llm.generateFinalReport({
+        requirementsEvaluation: requirementsEval,
+        codeQuality: codeQualityResult.analysis,
+        runnability: runnabilityResult.analysis,
+        commitAnalysis: commitResult.analysis,
+        aiAnalysis: aiPatternsResult.analysis,
+        finalScore: Math.round(finalScore)
+      });
+
       // Aggregate Usage
-      const totalUsage = {
-        inputTokens:
-          (reqResult.usage?.inputTokens || 0) +
-          (repoMapResult.usage?.inputTokens || 0) +
-          (commitResult.usage?.inputTokens || 0) +
-          (mainUsage?.inputTokens || 0),
-        outputTokens:
-          (reqResult.usage?.outputTokens || 0) +
-          (repoMapResult.usage?.outputTokens || 0) +
-          (commitResult.usage?.outputTokens || 0) +
-          (mainUsage?.outputTokens || 0),
-        totalTokens:
-          (reqResult.usage?.totalTokens || 0) +
-          (repoMapResult.usage?.totalTokens || 0) +
-          (commitResult.usage?.totalTokens || 0) +
-          (mainUsage?.totalTokens || 0),
-        estimatedCost:
-          (reqResult.usage?.estimatedCost || 0) +
-          (repoMapResult.usage?.estimatedCost || 0) +
-          (commitResult.usage?.estimatedCost || 0) +
-          (mainUsage?.estimatedCost || 0),
-      };
+      const results = [
+        reqResult,
+        repoMapResult,
+        commitResult,
+        codeQualityResult,
+        runnabilityResult,
+        aiPatternsResult,
+        requirementsEvalResult,
+        finalReportResult
+      ];
+
+      const totalUsage = results.reduce((acc, res) => ({
+        inputTokens: acc.inputTokens + (res.usage?.inputTokens || 0),
+        outputTokens: acc.outputTokens + (res.usage?.outputTokens || 0),
+        totalTokens: acc.totalTokens + (res.usage?.totalTokens || 0),
+        estimatedCost: acc.estimatedCost + (res.usage?.estimatedCost || 0),
+      }), { inputTokens: 0, outputTokens: 0, totalTokens: 0, estimatedCost: 0 });
 
       console.log('Analysis Done for assessmentId: ', assessmentId);
       await prisma.assessment.update({
         where: { id: assessmentId },
         data: {
           status: 'COMPLETED',
-          score: analysis.score,
+          score: Math.round(finalScore), // Legacy compatibility
+          finalScore: finalScore,
 
           // Usage tracking (aggregated)
           inputTokens: totalUsage.inputTokens,
@@ -95,26 +127,26 @@ export const handler = async (event: SQSEvent) => {
           totalTokens: totalUsage.totalTokens,
           estimatedCost: new Prisma.Decimal(totalUsage.estimatedCost),
 
-          // New improved fields
-          aiUsageDetection: analysis.aiUsageDetection,
-          summary: analysis.summary || '',
+          // Analysis results
+          summary: finalReportResult.report.summary || '',
           requirements: reqResult.requirements || [],
-          requirementsEvaluation: analysis.requirementsEvaluation || [],
-          repoSnapshot: context, 
+          requirementsEvaluation: requirementsEval,
+          codeQuality: codeQualityResult.analysis,
+          runnability: runnabilityResult.analysis,
+          commitAnalysis: commitResult.analysis,
+          aiAnalysis: aiPatternsResult.analysis,
           
-          interviewQuestions: analysis.interviewQuestions || [],
-
-          testDetection: {
-            hasTests: analysis.testDetection?.hasTests || false,
-            language: analysis.testDetection?.language || null,
-            framework: analysis.testDetection?.framework || 'unknown',
-            command: analysis.testDetection?.command || null,
-            path: analysis.testDetection?.path || null,
-            reason: analysis.testDetection?.reason || '',
-          },
-
+          requirementScore,
+          codeQualityScore,
+          runnabilityScore,
+          aiAnalysisScore: aiPatternsResult.analysis.score,
+          
+          finalReport: finalReportResult.report,
+          interviewQuestions: finalReportResult.report.interviewQuestions || [],
+          testDetection: runnabilityResult.analysis.testDetection || { hasTests: false },
+          
+          repoSnapshot: context, 
           repoMap: repoMapResult.repoMap || null,
-          commitAnalysis: commitResult.analysis || null,
         },
       });
 

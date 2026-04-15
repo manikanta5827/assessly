@@ -141,119 +141,225 @@ You are a senior developer analyzing a codebase. Generate a JSON map of filename
     };
   }
 
-  async analyzeAssessment(
-    repoSnapshot: string,
-    instructions: string,
-    requirements: any[]
+  async analyzeCodeQuality(
+    repoSnapshot: string
   ): Promise<{ analysis: any; usage: LLMUsageStats | null }> {
-    console.log(`[LLMService] Starting analyzeAssessment... (${requirements.length} requirements)`);
+    console.log(`[LLMService] Starting analyzeCodeQuality...`);
     const prompt = PromptTemplate.fromTemplate(`
+You are an expert code auditor. Analyze the provided codebase snapshot for quality, readability, and best practices.
+
 ### Candidate's Code Snapshot:
 {repoSnapshot}
 
----
+### Output JSON Format:
+{{
+  "score": 0-100,
+  "breakdown": {{
+    "readability": number,
+    "structure": number,
+    "naming": number,
+    "bestPractices": number
+  }},
+  "summary": "Concise summary of code quality",
+  "issues": ["Issue 1", "Issue 2"]
+}}
+`);
 
-You are a senior software engineer and technical interviewer with 15+ years of experience.
-Your job is to evaluate a candidate's take-home assignment submission.
+    const chain = prompt.pipe(this.model);
+    const response = (await chain.invoke({ repoSnapshot })) as BaseMessage;
+    const usage = this.calculateUsage(response);
 
-### Assessment Requirements:
-{assessmentText}
+    const content = typeof response.content === 'string' ? response.content : JSON.stringify(response.content);
+    const jsonStr = content.match(/\{[\s\S]*\}/)?.[0] || content;
 
----
+    return { analysis: JSON.parse(jsonStr), usage };
+  }
 
-### Evaluation Rules:
-- Be strict and objective. Score 90+ only for genuinely excellent work.
-- Judge how well the candidate fulfilled the SPECIFIC requirements above.
-- Consider: code quality, architecture, security, edge cases, and best practices.
-- For AI detection: look for generic comments, uniform style, cookie-cutter patterns, and lack of personal problem-solving traces.
-For each requirement below, check if it is implemented in the codebase.
+  async analyzeRunnability(
+    repoSnapshot: string
+  ): Promise<{ analysis: any; usage: LLMUsageStats | null }> {
+    console.log(`[LLMService] Starting analyzeRunnability...`);
+    const prompt = PromptTemplate.fromTemplate(`
+You are a DevOps expert. Analyze the codebase snapshot for setup clarity and "runnability" (Docker, scripts, CI, env files, tests).
+
+### Candidate's Code Snapshot:
+{repoSnapshot}
+
+### Output JSON Format:
+{{
+  "score": 0-100,
+  "hasDocker": boolean,
+  "hasEnvExample": boolean,
+  "hasScripts": boolean,
+  "ciDetected": boolean,
+  "testDetection": {{
+    "hasTests": boolean,
+    "language": "node | python | go | unknown",
+    "framework": "jest | vitest | mocha | pytest | go test | unknown",
+    "command": "exact command string to run tests",
+    "path": "folder path where tests are located",
+    "reason": "how you detected the test setup"
+  }},
+  "summary": "Summary of setup quality",
+  "issues": ["Issue 1", "Issue 2"]
+}}
+`);
+
+    const chain = prompt.pipe(this.model);
+    const response = (await chain.invoke({ repoSnapshot })) as BaseMessage;
+    const usage = this.calculateUsage(response);
+
+    const content = typeof response.content === 'string' ? response.content : JSON.stringify(response.content);
+    const jsonStr = content.match(/\{[\s\S]*\}/)?.[0] || content;
+
+    return { analysis: JSON.parse(jsonStr), usage };
+  }
+
+  async analyzeAIPatterns(
+    repoSnapshot: string
+  ): Promise<{ analysis: any; usage: LLMUsageStats | null }> {
+    console.log(`[LLMService] Starting analyzeAIPatterns...`);
+    const prompt = PromptTemplate.fromTemplate(`
+You are an expert at detecting AI-generated code patterns. Analyze the code style consistency, repetition, and commit behavior.
+
+### Candidate's Code Snapshot:
+{repoSnapshot}
+
+### Output JSON Format:
+{{
+  "score": 0-100,
+  "confidence": 0-100,
+  "signals": {{
+    "uniformStyle": boolean,
+    "lowIterationEvidence": boolean,
+    "genericPatterns": boolean,
+    "commitMismatch": boolean
+  }},
+  "summary": "Brief summary",
+  "reasoning": "Detailed reasoning"
+}}
+`);
+
+    const chain = prompt.pipe(this.model);
+    const response = (await chain.invoke({ repoSnapshot })) as BaseMessage;
+    const usage = this.calculateUsage(response);
+
+    const content = typeof response.content === 'string' ? response.content : JSON.stringify(response.content);
+    const jsonStr = content.match(/\{[\s\S]*\}/)?.[0] || content;
+
+    return { analysis: JSON.parse(jsonStr), usage };
+  }
+
+  async evaluateRequirements(
+    repoSnapshot: string,
+    requirements: any[]
+  ): Promise<{ evaluation: any[]; usage: LLMUsageStats | null }> {
+    console.log(`[LLMService] Starting evaluateRequirements...`);
+    const prompt = PromptTemplate.fromTemplate(`
+Evaluate the candidate's implementation against specific requirements.
+
+### Candidate's Code Snapshot:
+{repoSnapshot}
 
 ### Requirements:
 {requirementsList}
 
----
-
-### Evaluation Rules:
-- Be strict and objective. 
-- For each requirement, return:
-  - status: MET | PARTIAL | NOT_MET
-  - confidence: 0–1
-  - evidence: The exact file path and a representative code snippet
-  - reasoning: Why you gave this status
----
-
-### CRITICAL OUTPUT RULES:
-- Return ONLY a raw JSON object. 
-- Do NOT wrap it in markdown, backticks, or code fences.
-- Do NOT add any explanation before or after the JSON.
-- Every field below is REQUIRED. Do not skip any field.
-
----
-
-Return this exact JSON structure:
-
-{{
-  "score": <number 0-100, strict>,
-  "summary": "<1-2 sentences narrative overall assessment including code quality and requirement fulfillment>",
-
-  "requirementsEvaluation": [
-    {{
-      "id": "REQ_X",
-      "text": "...",
-      "status": "MET | PARTIAL | NOT_MET",
-      "confidence": 0-1,
-      "evidence": {{ "file": "...", "snippet": "..." }},
-      "reasoning": "..."
-    }}
-
-  "aiUsageDetection": {{
-    "score": <number 0-100, where 0 = fully human, 100 = fully AI-generated>,
-    "confidence": <number 0-100>,
-    "reasoning": "<one short sentence explaining why>"
-  }},
-
-  // 2-5 questions
-  // These questions are asked to the candidate to clarify their understanding of the code snapshot during interview.
-  // The questions should be specific to the candidate's code snapshot.
-  "interviewQuestions": [
-    {{
-      "question": "<specific question to ask the candidate>",
-      "focusArea": "<e.g. Authentication, Error Handling, Performance, Security, Scalability, Maintainability, etc>"
-    }}
-  ],
-
-  "testDetection": {{
-    "hasTests": <true or false>,
-    "language": "<one of: node, python, go, unknown>",
-    "framework": "<one of: jest, vitest, mocha, pytest, go test, unknown>",
-    "command": "<exact command string to run tests, e.g. npm test>",
-    "path": "<folder path where tests are located, e.g. tests/ or __tests__>",
-    "reason": "<one sentence: how you detected the test setup>"
+### Output JSON Format (Array):
+[
+  {{
+    "id": "REQ_X",
+    "text": "...",
+    "status": "MET | PARTIAL | NOT_MET",
+    "confidence": 0-1,
+    "evidence": {{ "file": "...", "snippet": "..." }},
+    "reasoning": "..."
   }}
-}}
+]
 `);
 
     const requirementsList = requirements
-      .map((r) => `- [${r.id}] [${r.category}] ${r.text}`)
+      .map((r) => `- [${r.id}] ${r.text}`)
       .join('\n');
 
     const chain = prompt.pipe(this.model);
-    const response = (await chain.invoke({
-      assessmentText: instructions,
-      repoSnapshot,
-      requirementsList,
-    })) as BaseMessage;
-
+    const response = (await chain.invoke({ repoSnapshot, requirementsList })) as BaseMessage;
     const usage = this.calculateUsage(response);
-    const content =
-      typeof response.content === 'string' ? response.content : JSON.stringify(response.content);
+
+    const content = typeof response.content === 'string' ? response.content : JSON.stringify(response.content);
+    const jsonStr = content.match(/\[[\s\S]*\]/)?.[0] || content;
+
+    return { evaluation: JSON.parse(jsonStr), usage };
+  }
+
+  async generateFinalReport(
+    inputs: {
+      requirementsEvaluation: any[];
+      codeQuality: any;
+      runnability: any;
+      commitAnalysis: any;
+      aiAnalysis: any;
+      finalScore: number;
+    }
+  ): Promise<{ report: any; usage: LLMUsageStats | null }> {
+    console.log(`[LLMService] Starting generateFinalReport...`);
+    const prompt = PromptTemplate.fromTemplate(`
+You are a senior engineer writing a hiring evaluation report. Use the provided inputs as ground truth.
+DO NOT recompute scores or re-evaluate requirements.
+
+### Evaluation Data:
+Final Score: {finalScore}
+Requirements Evaluation: {requirementsEvaluation}
+Code Quality: {codeQuality}
+Runnability: {runnability}
+Commit Analysis: {commitAnalysis}
+AI Analysis: {aiAnalysis}
+
+### Output JSON Format:
+{{
+  "finalScore": {finalScore},
+  "summary": "2-3 lines overall summary",
+  "strengths": ["...", "..."],
+  "weaknesses": ["...", "..."],
+  "hiringRecommendation": "STRONG_HIRE | HIRE | NO_HIRE",
+  "interviewQuestions": [
+    {{
+      "question": "...",
+      "focusArea": "..."
+    }}
+  ]
+}}
+`);
+
+    const chain = prompt.pipe(this.model);
+    const response = (await chain.invoke({
+      finalScore: inputs.finalScore,
+      requirementsEvaluation: JSON.stringify(inputs.requirementsEvaluation),
+      codeQuality: JSON.stringify(inputs.codeQuality),
+      runnability: JSON.stringify(inputs.runnability),
+      commitAnalysis: JSON.stringify(inputs.commitAnalysis),
+      aiAnalysis: JSON.stringify(inputs.aiAnalysis),
+    })) as BaseMessage;
+    const usage = this.calculateUsage(response);
+
+    const content = typeof response.content === 'string' ? response.content : JSON.stringify(response.content);
     const jsonStr = content.match(/\{[\s\S]*\}/)?.[0] || content;
 
-    return {
-      analysis: JSON.parse(jsonStr),
-      usage,
-    };
+    return { report: JSON.parse(jsonStr), usage };
   }
+
+  async analyzeAssessment(
+    repoSnapshot: string,
+    _instructions: string,
+    requirements: any[]
+  ): Promise<{ analysis: any; usage: LLMUsageStats | null }> {
+    // This method is now redundant or can be removed if not used elsewhere.
+    // Keeping a stub if needed for backwards compatibility during migration.
+    return this.evaluateRequirements(repoSnapshot, requirements).then(res => ({
+      analysis: { requirementsEvaluation: res.evaluation },
+      usage: res.usage
+    }));
+  }
+
 
   async analyzeCommits(
     commitMessages: string[]

@@ -25,16 +25,31 @@ model Assessment {
 
   status AssessmentStatus @default(PENDING)
 
-  score              Int?
-  aiUsageDetection   Json? @map("ai_usage_detection")
+  score              Int? // Legacy field, keeping for compatibility
+  finalScore         Float? @map("final_score")
+  
   summary            String? @map("summary")
   requirements       Json?   @map("requirements")
   requirementsEvaluation Json? @map("requirements_evaluation")
+  
+  codeQuality        Json?   @map("code_quality")
+  runnability        Json?   @map("runnability")
+  commitAnalysis     Json?   @map("commit_analysis")
+  aiAnalysis         Json?   @map("ai_analysis")
+  
+  requirementScore   Float?  @map("requirement_score")
+  codeQualityScore   Float?  @map("code_quality_score")
+  runnabilityScore   Float?  @map("runnability_score")
+  aiAnalysisScore    Float?  @map("ai_analysis_score")
+  
+  finalReport        Json?   @map("final_report")
+
   interviewQuestions Json? @map("interview_questions")
   testDetection      Json? @map("test_detection")
   repoMap            Json? @map("repo_map")
-  commitAnalysis     Json? @map("commit_analysis")
 
+  aiUsageDetection   Json? @map("ai_usage_detection") // Legacy
+  
   testExecuted Boolean @default(false) @map("test_executed")
   testResults  Json?   @map("test_results")
   
