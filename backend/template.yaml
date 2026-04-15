@@ -39,6 +39,7 @@ Resources:
           QUEUE_URL: !Ref ProcessQueue
           DATABASE_URL: !Sub '{{resolve:ssm:/assessly/${Stage}/DATABASE_URL}}'
       Timeout: 30
+      MemorySize: 256
       Events:
         AnalyzeApi:
           Type: Api
