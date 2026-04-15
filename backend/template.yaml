@@ -100,6 +100,7 @@ Resources:
       CodeUri: ./
       Handler: src/lambdas/get-assessment.handler
       Timeout: 30
+      MemorySize: 256
       Policies:
         - AWSLambdaBasicExecutionRole
       Environment:
