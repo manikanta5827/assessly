@@ -255,6 +255,70 @@ Return this exact JSON structure:
     };
   }
 
+  async analyzeCommits(
+    commitMessages: string[]
+  ): Promise<{ analysis: any; usage: LLMUsageStats | null }> {
+    console.log(`[LLMService] Starting analyzeCommits... (${commitMessages.length} messages)`);
+    if (commitMessages.length === 0) {
+      return {
+        analysis: {
+          qualityScore: 0,
+          summary: "No commits found to analyze.",
+          pattern: "NONE",
+          reasoning: "The repository has no commits or they could not be fetched."
+        },
+        usage: null
+      };
+    }
+
+    const prompt = PromptTemplate.fromTemplate(`
+You are an expert developer and technical lead. Your task is to analyze the commit history of a repository.
+Evaluate the quality of the commit messages, look for patterns (like Conventional Commits), and determine if the messages are descriptive or random.
+
+### Commit Messages:
+{commitMessages}
+
+---
+
+### Analysis Rules:
+1. **Quality Score**: 0-100 (high score for descriptive, clear, and consistent messages).
+2. **Pattern Detection**: Identify the predominant pattern:
+   - "CONVENTIONAL": Following Conventional Commits spec.
+   - "DESCRIPTIVE": Clear messages, even if not following a strict spec.
+   - "RANDOM": Messages like "fix", "update", "asdf", or very short/vague ones.
+   - "MIXED": A mix of different styles.
+3. **Summary**: A concise narrative of the findings.
+4. **Reasoning**: Detailed explanation of why you gave the score and pattern.
+
+---
+
+### Output JSON Format:
+{{
+  "qualityScore": <number 0-100>,
+  "pattern": "CONVENTIONAL | DESCRIPTIVE | RANDOM | MIXED",
+  "summary": "<1-2 sentences overall assessment>",
+  "reasoning": "<explanation regarding clarity, consistency, and professional standards>"
+}}
+`);
+
+    const commitList = commitMessages.map((m) => `- ${m}`).join('\n');
+
+    const chain = prompt.pipe(this.model);
+    const response = (await chain.invoke({
+      commitMessages: commitList,
+    })) as BaseMessage;
+
+    const usage = this.calculateUsage(response);
+    const content =
+      typeof response.content === 'string' ? response.content : JSON.stringify(response.content);
+    const jsonStr = content.match(/\{[\s\S]*\}/)?.[0] || content;
+
+    return {
+      analysis: JSON.parse(jsonStr),
+      usage,
+    };
+  }
+
   private calculateUsage(response: BaseMessage): LLMUsageStats | null {
     // Try to get standardized usage first, then fall back to response_metadata
     const usageMetadata = (response as any).usage_metadata;

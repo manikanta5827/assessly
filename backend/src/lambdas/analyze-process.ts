@@ -34,16 +34,21 @@ export const handler = async (event: SQSEvent) => {
       // 4. Process Repo
       const { owner, repo } = github.parseUrl(assessment.repoUrl);
       console.log(`Building context for ${owner}/${repo}...`);
-      const { context, fileNames } = await github.buildContext(owner, repo);
+      const [{ context, fileNames }, commitMessages] = await Promise.all([
+        github.buildContext(owner, repo),
+        github.getCommits(owner, repo),
+      ]);
       console.log(`Context built. Length: ${context.length} characters.`);
+      console.log(`Fetched ${commitMessages.length} commit messages.`);
 
       // 5. AI Analysis - Multi-stage
       console.log(`Starting Multi-stage AI Analysis for assessmentId: ${assessmentId}...`);
       
-      // Stage 1: Parallel calls for requirements and repo map
-      const [reqResult, repoMapResult] = await Promise.all([
+      // Stage 1: Parallel calls for requirements, repo map, and commit analysis
+      const [reqResult, repoMapResult, commitResult] = await Promise.all([
         llm.extractRequirements(assessment.requirementsText),
         llm.generateRepoMap(fileNames, context),
+        llm.analyzeCommits(commitMessages),
       ]);
 
       // Stage 2: Main assessment call
@@ -55,10 +60,26 @@ export const handler = async (event: SQSEvent) => {
 
       // Aggregate Usage
       const totalUsage = {
-        inputTokens: (reqResult.usage?.inputTokens || 0) + (repoMapResult.usage?.inputTokens || 0) + (mainUsage?.inputTokens || 0),
-        outputTokens: (reqResult.usage?.outputTokens || 0) + (repoMapResult.usage?.outputTokens || 0) + (mainUsage?.outputTokens || 0),
-        totalTokens: (reqResult.usage?.totalTokens || 0) + (repoMapResult.usage?.totalTokens || 0) + (mainUsage?.totalTokens || 0),
-        estimatedCost: (reqResult.usage?.estimatedCost || 0) + (repoMapResult.usage?.estimatedCost || 0) + (mainUsage?.estimatedCost || 0),
+        inputTokens:
+          (reqResult.usage?.inputTokens || 0) +
+          (repoMapResult.usage?.inputTokens || 0) +
+          (commitResult.usage?.inputTokens || 0) +
+          (mainUsage?.inputTokens || 0),
+        outputTokens:
+          (reqResult.usage?.outputTokens || 0) +
+          (repoMapResult.usage?.outputTokens || 0) +
+          (commitResult.usage?.outputTokens || 0) +
+          (mainUsage?.outputTokens || 0),
+        totalTokens:
+          (reqResult.usage?.totalTokens || 0) +
+          (repoMapResult.usage?.totalTokens || 0) +
+          (commitResult.usage?.totalTokens || 0) +
+          (mainUsage?.totalTokens || 0),
+        estimatedCost:
+          (reqResult.usage?.estimatedCost || 0) +
+          (repoMapResult.usage?.estimatedCost || 0) +
+          (commitResult.usage?.estimatedCost || 0) +
+          (mainUsage?.estimatedCost || 0),
       };
 
       console.log('Analysis Done for assessmentId: ', assessmentId);
@@ -93,6 +114,7 @@ export const handler = async (event: SQSEvent) => {
           },
 
           repoMap: repoMapResult.repoMap || null,
+          commitAnalysis: commitResult.analysis || null,
         },
       });
 

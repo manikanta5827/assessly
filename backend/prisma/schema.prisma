@@ -33,6 +33,7 @@ model Assessment {
   interviewQuestions Json? @map("interview_questions")
   testDetection      Json? @map("test_detection")
   repoMap            Json? @map("repo_map")
+  commitAnalysis     Json? @map("commit_analysis")
 
   testExecuted Boolean @default(false) @map("test_executed")
   testResults  Json?   @map("test_results")
