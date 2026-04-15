@@ -5,6 +5,15 @@ export class AssessmentRepository {
   async getAssessmentById(id: string) {
     return prisma.assessment.findUnique({
       where: { id },
+      include: {
+        requirements: true,
+        codeQuality: true,
+        runnability: true,
+        aiAnalysis: true,
+        commitAnalysis: true,
+        finalReport: true,
+        interviewQuestions: true,
+      }
     });
   }
 

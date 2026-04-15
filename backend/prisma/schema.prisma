@@ -28,23 +28,19 @@ model Assessment {
   score              Int?
   
   summary            String? @map("summary")
-  requirements       Json?   @map("requirements")
-  requirementsEvaluation Json? @map("requirements_evaluation")
-  
-  codeQuality        Json?   @map("code_quality")
-  runnability        Json?   @map("runnability")
-  commitAnalysis     Json?   @map("commit_analysis")
-  aiAnalysis         Json?   @map("ai_analysis")
   
   requirementScore   Float?  @map("requirement_score")
   codeQualityScore   Float?  @map("code_quality_score")
   runnabilityScore   Float?  @map("runnability_score")
   aiAnalysisScore    Float?  @map("ai_analysis_score")
-  
-  finalReport        Json?   @map("final_report")
 
-  interviewQuestions Json? @map("interview_questions")
-  testDetection      Json? @map("test_detection")
+  requirements       Requirement[]
+  codeQuality        AssessmentCodeQuality?
+  runnability        AssessmentRunnability?
+  aiAnalysis         AssessmentAiAnalysis?
+  commitAnalysis     AssessmentCommitAnalysis?
+  finalReport        AssessmentFinalReport?
+  interviewQuestions InterviewQuestion[]
   repoMap            Json? @map("repo_map")
 
   aiUsageDetection   Json? @map("ai_usage_detection") // Legacy
@@ -71,4 +67,124 @@ model IpTracking {
   lastSeenAt      DateTime @default(now()) @map("last_seen_at")
 
   @@map("ip_tracking")
+}
+
+enum RequirementStatus {
+  MET
+  PARTIAL
+  NOT_MET
+  PENDING
+}
+
+model Requirement {
+  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  assessmentId    String   @db.Uuid
+  requirementId   String   @map("requirement_id")
+  text            String
+  category        String?
+  suggestedFiles  String[] @map("suggested_files")
+  
+  status          RequirementStatus @default(PENDING)
+  confidence      Float?
+  evidenceFile    String?  @map("evidence_file")
+  evidenceSnippet String?  @map("evidence_snippet")
+  reasoning       String?
+
+  assessment      Assessment @relation(fields: [assessmentId], references: [id], onDelete: Cascade)
+
+  @@map("requirements")
+}
+
+model AssessmentCodeQuality {
+  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  assessmentId    String   @unique @db.Uuid
+  score           Float
+  readability     Float
+  structure       Float
+  naming          Float
+  bestPractices   Float    @map("best_practices")
+  summary         String
+  issues          String[]
+
+  assessment      Assessment @relation(fields: [assessmentId], references: [id], onDelete: Cascade)
+
+  @@map("assessment_code_quality")
+}
+
+model AssessmentRunnability {
+  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  assessmentId    String   @unique @db.Uuid
+  score           Float
+  hasDocker       Boolean  @map("has_docker")
+  hasEnvExample   Boolean  @map("has_env_example")
+  hasScripts      Boolean  @map("has_scripts")
+  ciDetected      Boolean  @map("ci_detected")
+  summary         String
+  issues          String[]
+
+  hasTests        Boolean? @map("has_tests")
+  testLanguage    String?  @map("test_language")
+  testFramework   String?  @map("test_framework")
+  testCommand     String?  @map("test_command")
+  testPath        String?  @map("test_path")
+  testReason      String?  @map("test_reason")
+
+  assessment      Assessment @relation(fields: [assessmentId], references: [id], onDelete: Cascade)
+
+  @@map("assessment_runnability")
+}
+
+model AssessmentAiAnalysis {
+  id                   String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  assessmentId         String   @unique @db.Uuid
+  score                Float
+  confidence           Float
+  uniformStyle         Boolean  @map("uniform_style")
+  lowIterationEvidence Boolean  @map("low_iteration_evidence")
+  genericPatterns      Boolean  @map("generic_patterns")
+  commitMismatch       Boolean  @map("commit_mismatch")
+  summary              String
+  reasoning            String
+
+  assessment           Assessment @relation(fields: [assessmentId], references: [id], onDelete: Cascade)
+
+  @@map("assessment_ai_analysis")
+}
+
+model AssessmentCommitAnalysis {
+  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  assessmentId    String   @unique @db.Uuid
+  qualityScore    Float    @map("quality_score")
+  pattern         String
+  summary         String
+  reasoning       String
+
+  assessment      Assessment @relation(fields: [assessmentId], references: [id], onDelete: Cascade)
+
+  @@map("assessment_commit_analysis")
+}
+
+model AssessmentFinalReport {
+  id                   String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  assessmentId         String   @unique @db.Uuid
+  score                Float
+  summary              String
+  strengths            String[]
+  weaknesses           String[]
+  hiringRecommendation String   @map("hiring_recommendation")
+
+  assessment           Assessment @relation(fields: [assessmentId], references: [id], onDelete: Cascade)
+
+  @@map("assessment_final_report")
+}
+
+model InterviewQuestion {
+  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  assessmentId    String   @db.Uuid
+  question        String
+  focusArea       String   @map("focus_area")
+
+  assessment      Assessment @relation(fields: [assessmentId], references: [id], onDelete: Cascade)
+
+  @@map("interview_questions")
 }

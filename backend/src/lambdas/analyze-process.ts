@@ -120,26 +120,95 @@ export const handler = async (event: SQSEvent) => {
         totalTokens: totalUsage.totalTokens,
         estimatedCost: new Prisma.Decimal(totalUsage.estimatedCost),
 
-        // Analysis results
         summary: finalReportResult.report.summary || '',
-        requirements: reqResult.requirements || [],
-        requirementsEvaluation: requirementsEval,
-        codeQuality: codeQualityResult.analysis,
-        runnability: runnabilityResult.analysis,
-        commitAnalysis: commitResult.analysis,
-        aiAnalysis: aiPatternsResult.analysis,
-
         requirementScore,
         codeQualityScore,
         runnabilityScore,
         aiAnalysisScore: aiPatternsResult.analysis.score,
 
-        finalReport: finalReportResult.report,
-        interviewQuestions: finalReportResult.report.interviewQuestions || [],
-        testDetection: runnabilityResult.analysis.testDetection || { hasTests: false },
-
         repoSnapshot: context,
         repoMap: repoMapResult.repoMap || null,
+
+        // Relational Nested Creates
+        requirements: {
+          create: reqResult.requirements.map((req: any) => {
+            const evalMatch = requirementsEval.find((e: any) => e.id === req.id);
+            return {
+              requirementId: req.id || 'UNKNOWN',
+              text: req.text || '',
+              category: req.category || null,
+              suggestedFiles: req.suggestedFiles || [],
+              status: evalMatch ? evalMatch.status : 'PENDING',
+              confidence: evalMatch ? evalMatch.confidence : 0,
+              evidenceFile: evalMatch?.evidence?.file || null,
+              evidenceSnippet: evalMatch?.evidence?.snippet || null,
+              reasoning: evalMatch ? evalMatch.reasoning : null,
+            };
+          }),
+        },
+        codeQuality: {
+          create: {
+            score: codeQualityResult.analysis.score || 0,
+            readability: codeQualityResult.analysis.breakdown?.readability || 0,
+            structure: codeQualityResult.analysis.breakdown?.structure || 0,
+            naming: codeQualityResult.analysis.breakdown?.naming || 0,
+            bestPractices: codeQualityResult.analysis.breakdown?.bestPractices || 0,
+            summary: codeQualityResult.analysis.summary || '',
+            issues: codeQualityResult.analysis.issues || [],
+          },
+        },
+        runnability: {
+          create: {
+            score: runnabilityResult.analysis.score || 0,
+            hasDocker: runnabilityResult.analysis.hasDocker || false,
+            hasEnvExample: runnabilityResult.analysis.hasEnvExample || false,
+            hasScripts: runnabilityResult.analysis.hasScripts || false,
+            ciDetected: runnabilityResult.analysis.ciDetected || false,
+            summary: runnabilityResult.analysis.summary || '',
+            issues: runnabilityResult.analysis.issues || [],
+            hasTests: runnabilityResult.analysis.testDetection?.hasTests || false,
+            testLanguage: runnabilityResult.analysis.testDetection?.language || null,
+            testFramework: runnabilityResult.analysis.testDetection?.framework || null,
+            testCommand: runnabilityResult.analysis.testDetection?.command || null,
+            testPath: runnabilityResult.analysis.testDetection?.path || null,
+            testReason: runnabilityResult.analysis.testDetection?.reason || null,
+          },
+        },
+        aiAnalysis: {
+          create: {
+            score: aiPatternsResult.analysis.score || 0,
+            confidence: aiPatternsResult.analysis.confidence || 0,
+            uniformStyle: aiPatternsResult.analysis.signals?.uniformStyle || false,
+            lowIterationEvidence: aiPatternsResult.analysis.signals?.lowIterationEvidence || false,
+            genericPatterns: aiPatternsResult.analysis.signals?.genericPatterns || false,
+            commitMismatch: aiPatternsResult.analysis.signals?.commitMismatch || false,
+            summary: aiPatternsResult.analysis.summary || '',
+            reasoning: aiPatternsResult.analysis.reasoning || '',
+          },
+        },
+        commitAnalysis: {
+          create: {
+            qualityScore: commitResult.analysis.qualityScore || 0,
+            pattern: commitResult.analysis.pattern || 'UNKNOWN',
+            summary: commitResult.analysis.summary || '',
+            reasoning: commitResult.analysis.reasoning || '',
+          },
+        },
+        finalReport: {
+          create: {
+            score: Math.round(finalScore) || 0,
+            summary: finalReportResult.report.summary || '',
+            strengths: finalReportResult.report.strengths || [],
+            weaknesses: finalReportResult.report.weaknesses || [],
+            hiringRecommendation: finalReportResult.report.hiringRecommendation || 'UNKNOWN',
+          },
+        },
+        interviewQuestions: {
+          create: (finalReportResult.report.interviewQuestions || []).map((iq: any) => ({
+            question: iq.question || '',
+            focusArea: iq.focusArea || '',
+          })),
+        },
       });
 
       console.log(`Assessment ${assessmentId} COMPLETED`);
