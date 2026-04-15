@@ -34,12 +34,12 @@ model Assessment {
   runnabilityScore   Float?  @map("runnability_score")
   aiAnalysisScore    Float?  @map("ai_analysis_score")
 
-  requirements       Requirement[]
-  codeQuality        AssessmentCodeQuality?
-  runnability        AssessmentRunnability?
-  aiAnalysis         AssessmentAiAnalysis?
-  commitAnalysis     AssessmentCommitAnalysis?
-  finalReport        AssessmentFinalReport?
+  requirements       ProjectRequirements[]
+  codeQuality        CodeQuality?
+  runnability        Runnability?
+  aiAnalysis         AiAnalysis?
+  commitAnalysis     CommitAnalysis?
+  finalReport        FinalReport?
   interviewQuestions InterviewQuestion[]
   repoMap            Json? @map("repo_map")
 
@@ -76,7 +76,7 @@ enum RequirementStatus {
   PENDING
 }
 
-model Requirement {
+model ProjectRequirements {
   id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   assessmentId    String   @db.Uuid
   requirementId   String   @map("requirement_id")
@@ -95,7 +95,7 @@ model Requirement {
   @@map("requirements")
 }
 
-model AssessmentCodeQuality {
+model CodeQuality {
   id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   assessmentId    String   @unique @db.Uuid
   score           Float
@@ -111,7 +111,7 @@ model AssessmentCodeQuality {
   @@map("assessment_code_quality")
 }
 
-model AssessmentRunnability {
+model Runnability {
   id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   assessmentId    String   @unique @db.Uuid
   score           Float
@@ -134,7 +134,7 @@ model AssessmentRunnability {
   @@map("assessment_runnability")
 }
 
-model AssessmentAiAnalysis {
+model AiAnalysis {
   id                   String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   assessmentId         String   @unique @db.Uuid
   score                Float
@@ -151,7 +151,7 @@ model AssessmentAiAnalysis {
   @@map("assessment_ai_analysis")
 }
 
-model AssessmentCommitAnalysis {
+model CommitAnalysis {
   id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   assessmentId    String   @unique @db.Uuid
   qualityScore    Float    @map("quality_score")
@@ -164,7 +164,7 @@ model AssessmentCommitAnalysis {
   @@map("assessment_commit_analysis")
 }
 
-model AssessmentFinalReport {
+model FinalReport {
   id                   String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   assessmentId         String   @unique @db.Uuid
   score                Float
