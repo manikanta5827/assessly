@@ -298,7 +298,7 @@ Evaluate the candidate's implementation against specific requirements.
       runnability: any;
       commitAnalysis: any;
       aiAnalysis: any;
-      finalScore: number;
+      score: number;
     }
   ): Promise<{ report: any; usage: LLMUsageStats | null }> {
     console.log(`[LLMService] Starting generateFinalReport...`);
@@ -307,7 +307,7 @@ You are a senior engineer writing a hiring evaluation report. Use the provided i
 DO NOT recompute scores or re-evaluate requirements.
 
 ### Evaluation Data:
-Final Score: {finalScore}
+Score: {score}
 Requirements Evaluation: {requirementsEvaluation}
 Code Quality: {codeQuality}
 Runnability: {runnability}
@@ -316,7 +316,7 @@ AI Analysis: {aiAnalysis}
 
 ### Output JSON Format:
 {{
-  "finalScore": {finalScore},
+  "score": {score},
   "summary": "2-3 lines overall summary",
   "strengths": ["...", "..."],
   "weaknesses": ["...", "..."],
@@ -332,7 +332,7 @@ AI Analysis: {aiAnalysis}
 
     const chain = prompt.pipe(this.model);
     const response = (await chain.invoke({
-      finalScore: inputs.finalScore,
+      score: inputs.score,
       requirementsEvaluation: JSON.stringify(inputs.requirementsEvaluation),
       codeQuality: JSON.stringify(inputs.codeQuality),
       runnability: JSON.stringify(inputs.runnability),

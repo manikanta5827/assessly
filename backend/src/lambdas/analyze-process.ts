@@ -1,8 +1,10 @@
 import { SQSEvent } from 'aws-lambda';
 import { Prisma } from '@prisma/client';
-import { prisma } from '../db/prisma';
+import { AssessmentRepository } from '../repositories/assessment.repository';
 import { GitHubService } from '../services/github.service';
 import { LLMService } from '../services/llm.service';
+
+const assessmentRepo = new AssessmentRepository();
 
 export const handler = async (event: SQSEvent) => {
   console.log('Processing event: ', event);
@@ -11,9 +13,7 @@ export const handler = async (event: SQSEvent) => {
 
     try {
       // 1. Fetch record
-      const assessment = await prisma.assessment.findUnique({
-        where: { id: assessmentId },
-      });
+      const assessment = await assessmentRepo.getAssessmentById(assessmentId);
 
       if (!assessment) {
         console.error(`Assessment with ID ${assessmentId} not found`);
@@ -22,14 +22,11 @@ export const handler = async (event: SQSEvent) => {
 
       // 2. Update status to PROCESSING
       console.log('Updating status to PROCESSING for assessmentId: ', assessmentId);
-      await prisma.assessment.update({
-        where: { id: assessmentId },
-        data: { status: 'PROCESSING' },
-      });
+      await assessmentRepo.updateAssessmentStatus(assessmentId, 'PROCESSING');
 
       // 3. Initialize Services
       const github = new GitHubService(process.env.GITHUB_TOKEN);
-      const llm = new LLMService('openai', process.env.OPENAI_API_KEY!, "gpt-4o-mini");
+      const llm = new LLMService('openai', process.env.OPENAI_API_KEY!, 'gpt-4o-mini');
 
       // 4. Process Repo
       const { owner, repo } = github.parseUrl(assessment.repoUrl);
@@ -43,7 +40,7 @@ export const handler = async (event: SQSEvent) => {
 
       // 5. AI Analysis - Multi-stage Pipeline
       console.log(`Starting Multi-stage AI Analysis for assessmentId: ${assessmentId}...`);
-      
+
       // STAGE 1: Parallel Analysis Calls
       const [
         reqResult,
@@ -51,7 +48,7 @@ export const handler = async (event: SQSEvent) => {
         commitResult,
         codeQualityResult,
         runnabilityResult,
-        aiPatternsResult
+        aiPatternsResult,
       ] = await Promise.all([
         llm.extractRequirements(assessment.requirementsText),
         llm.generateRepoMap(fileNames, context),
@@ -71,18 +68,14 @@ export const handler = async (event: SQSEvent) => {
       const requirementsEval = requirementsEvalResult.evaluation;
       const totalRequirements = requirementsEval.length;
       const metRequirements = requirementsEval.filter((r: any) => r.status === 'MET').length;
-      
-      const requirementScore = totalRequirements > 0 
-        ? (metRequirements / totalRequirements) * 100 
-        : 0;
-      
+
+      const requirementScore =
+        totalRequirements > 0 ? (metRequirements / totalRequirements) * 100 : 0;
+
       const codeQualityScore = codeQualityResult.analysis.score || 0;
       const runnabilityScore = runnabilityResult.analysis.score || 0;
 
-      const finalScore = 
-        (requirementScore * 0.6) + 
-        (codeQualityScore * 0.25) + 
-        (runnabilityScore * 0.15);
+      const finalScore = requirementScore * 0.6 + codeQualityScore * 0.25 + runnabilityScore * 0.15;
 
       // STAGE 4: Final LLM Report
       const finalReportResult = await llm.generateFinalReport({
@@ -91,7 +84,7 @@ export const handler = async (event: SQSEvent) => {
         runnability: runnabilityResult.analysis,
         commitAnalysis: commitResult.analysis,
         aiAnalysis: aiPatternsResult.analysis,
-        finalScore: Math.round(finalScore)
+        score: Math.round(finalScore),
       });
 
       // Aggregate Usage
@@ -103,51 +96,50 @@ export const handler = async (event: SQSEvent) => {
         runnabilityResult,
         aiPatternsResult,
         requirementsEvalResult,
-        finalReportResult
+        finalReportResult,
       ];
 
-      const totalUsage = results.reduce((acc, res) => ({
-        inputTokens: acc.inputTokens + (res.usage?.inputTokens || 0),
-        outputTokens: acc.outputTokens + (res.usage?.outputTokens || 0),
-        totalTokens: acc.totalTokens + (res.usage?.totalTokens || 0),
-        estimatedCost: acc.estimatedCost + (res.usage?.estimatedCost || 0),
-      }), { inputTokens: 0, outputTokens: 0, totalTokens: 0, estimatedCost: 0 });
+      const totalUsage = results.reduce(
+        (acc, res) => ({
+          inputTokens: acc.inputTokens + (res.usage?.inputTokens || 0),
+          outputTokens: acc.outputTokens + (res.usage?.outputTokens || 0),
+          totalTokens: acc.totalTokens + (res.usage?.totalTokens || 0),
+          estimatedCost: acc.estimatedCost + (res.usage?.estimatedCost || 0),
+        }),
+        { inputTokens: 0, outputTokens: 0, totalTokens: 0, estimatedCost: 0 }
+      );
 
       console.log('Analysis Done for assessmentId: ', assessmentId);
-      await prisma.assessment.update({
-        where: { id: assessmentId },
-        data: {
-          status: 'COMPLETED',
-          score: Math.round(finalScore), // Legacy compatibility
-          finalScore: finalScore,
+      await assessmentRepo.updateAssessment(assessmentId, {
+        status: 'COMPLETED',
+        score: Math.round(finalScore),
 
-          // Usage tracking (aggregated)
-          inputTokens: totalUsage.inputTokens,
-          outputTokens: totalUsage.outputTokens,
-          totalTokens: totalUsage.totalTokens,
-          estimatedCost: new Prisma.Decimal(totalUsage.estimatedCost),
+        // Usage tracking (aggregated)
+        inputTokens: totalUsage.inputTokens,
+        outputTokens: totalUsage.outputTokens,
+        totalTokens: totalUsage.totalTokens,
+        estimatedCost: new Prisma.Decimal(totalUsage.estimatedCost),
 
-          // Analysis results
-          summary: finalReportResult.report.summary || '',
-          requirements: reqResult.requirements || [],
-          requirementsEvaluation: requirementsEval,
-          codeQuality: codeQualityResult.analysis,
-          runnability: runnabilityResult.analysis,
-          commitAnalysis: commitResult.analysis,
-          aiAnalysis: aiPatternsResult.analysis,
-          
-          requirementScore,
-          codeQualityScore,
-          runnabilityScore,
-          aiAnalysisScore: aiPatternsResult.analysis.score,
-          
-          finalReport: finalReportResult.report,
-          interviewQuestions: finalReportResult.report.interviewQuestions || [],
-          testDetection: runnabilityResult.analysis.testDetection || { hasTests: false },
-          
-          repoSnapshot: context, 
-          repoMap: repoMapResult.repoMap || null,
-        },
+        // Analysis results
+        summary: finalReportResult.report.summary || '',
+        requirements: reqResult.requirements || [],
+        requirementsEvaluation: requirementsEval,
+        codeQuality: codeQualityResult.analysis,
+        runnability: runnabilityResult.analysis,
+        commitAnalysis: commitResult.analysis,
+        aiAnalysis: aiPatternsResult.analysis,
+
+        requirementScore,
+        codeQualityScore,
+        runnabilityScore,
+        aiAnalysisScore: aiPatternsResult.analysis.score,
+
+        finalReport: finalReportResult.report,
+        interviewQuestions: finalReportResult.report.interviewQuestions || [],
+        testDetection: runnabilityResult.analysis.testDetection || { hasTests: false },
+
+        repoSnapshot: context,
+        repoMap: repoMapResult.repoMap || null,
       });
 
       console.log(`Assessment ${assessmentId} COMPLETED`);
@@ -155,11 +147,8 @@ export const handler = async (event: SQSEvent) => {
       console.error(`Processing Error for Assessment ${assessmentId}:`, error);
 
       // Update status to FAILED
-      await prisma.assessment
-        .update({
-          where: { id: assessmentId },
-          data: { status: 'FAILED' },
-        })
+      await assessmentRepo
+        .updateAssessmentStatus(assessmentId, 'FAILED')
         .catch((e: unknown) => console.error('Could not set status to FAILED', e));
     }
   }

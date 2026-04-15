@@ -25,8 +25,7 @@ model Assessment {
 
   status AssessmentStatus @default(PENDING)
 
-  score              Int? // Legacy field, keeping for compatibility
-  finalScore         Float? @map("final_score")
+  score              Int?
   
   summary            String? @map("summary")
   requirements       Json?   @map("requirements")
