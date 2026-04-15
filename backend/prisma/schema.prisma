@@ -21,7 +21,6 @@ model Assessment {
 
   repoUrl          String  @map("repo_url")
   requirementsText String  @map("requirements_text")
-  repoSnapshot     String? @map("repo_snapshot") // The big markdown DFS output
 
   status AssessmentStatus @default(PENDING)
 
@@ -41,7 +40,6 @@ model Assessment {
   commitAnalysis     CommitAnalysis?
   finalReport        FinalReport?
   interviewQuestions InterviewQuestion[]
-  repoMap            Json?                 @map("repo_map")
 
   testExecuted Boolean @default(false) @map("test_executed")
   testResults  Json?   @map("test_results")

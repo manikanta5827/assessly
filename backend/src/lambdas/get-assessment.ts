@@ -45,7 +45,6 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
         assessmentId: assessment.id,
         userId: assessment.userId,
         repoUrl: assessment.repoUrl,
-        requirementsText: assessment.requirementsText,
         status: assessment.status,
         score: assessment.score ?? 0,
         summary: assessment.summary ?? '',

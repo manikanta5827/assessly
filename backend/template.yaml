@@ -68,11 +68,14 @@ Resources:
       MemorySize: 512
       Policies:
         - AWSLambdaBasicExecutionRole
+        - S3CrudPolicy:
+            BucketName: !Ref AssesslyStorageBucket
       Environment:
         Variables:
           DATABASE_URL: !Sub '{{resolve:ssm:/assessly/${Stage}/DATABASE_URL}}'
           GITHUB_TOKEN: !Sub '{{resolve:ssm:/assessly/${Stage}/GITHUB_TOKEN}}'
           OPENAI_API_KEY: !Sub '{{resolve:ssm:/assessly/${Stage}/OPENAI_API_KEY}}'
+          STORAGE_BUCKET_NAME: !Ref AssesslyStorageBucket
       Events:
         ProcessQueueEvent:
           Type: SQS
@@ -102,6 +105,7 @@ Resources:
       Environment:
         Variables:
           DATABASE_URL: !Sub '{{resolve:ssm:/assessly/${Stage}/DATABASE_URL}}'
+          STORAGE_BUCKET_NAME: !Ref AssesslyStorageBucket
       Events:
         GetAssessmentApi:
           Type: Api
@@ -144,6 +148,23 @@ Resources:
     Properties:
       LogGroupName: !Sub '/aws/lambda/${GetAssessmentFunction}'
       RetentionInDays: 3
+
+  # --- S3 BUCKET
+  AssesslyStorageBucket:
+    Type: AWS::S3::Bucket
+    UpdateReplacePolicy: Retain
+    DeletionPolicy: Retain
+    Properties:
+      BucketName: !Sub '${Stage}-assessly-storage-${AWS::AccountId}'
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
 
   # --- SQS QUEUE
   ProcessDLQ:

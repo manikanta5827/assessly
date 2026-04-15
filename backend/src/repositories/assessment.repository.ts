@@ -17,6 +17,19 @@ export class AssessmentRepository {
     });
   }
 
+
+
+  async getAssessmentForProcessing(id: string) {
+    return prisma.assessment.findUnique({
+      where: { id },
+      select: {
+        id: true,
+        repoUrl: true,
+        requirementsText: true,
+      }
+    });
+  }
+
   async updateAssessmentStatus(id: string, status: AssessmentStatus) {
     return prisma.assessment.update({
       where: { id },

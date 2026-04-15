@@ -3,8 +3,10 @@ import { Prisma } from '@prisma/client';
 import { AssessmentRepository } from '../repositories/assessment.repository';
 import { GitHubService } from '../services/github.service';
 import { LLMService } from '../services/llm.service';
+import { S3Service } from '../services/s3.service';
 
 const assessmentRepo = new AssessmentRepository();
+const s3Service = new S3Service();
 
 export const handler = async (event: SQSEvent) => {
   console.log('Processing event: ', event);
@@ -13,7 +15,7 @@ export const handler = async (event: SQSEvent) => {
 
     try {
       // 1. Fetch record
-      const assessment = await assessmentRepo.getAssessmentById(assessmentId);
+      const assessment = await assessmentRepo.getAssessmentForProcessing(assessmentId);
 
       if (!assessment) {
         console.error(`Assessment with ID ${assessmentId} not found`);
@@ -110,6 +112,13 @@ export const handler = async (event: SQSEvent) => {
       );
 
       console.log('Analysis Done for assessmentId: ', assessmentId);
+
+      // 6. Store Large Contexts in S3
+      await Promise.all([
+        s3Service.putObject(assessmentId, 'snapshot.txt', context, 'text/plain'),
+        s3Service.putObject(assessmentId, 'repo-map.json', repoMapResult.repoMap || null, 'application/json'),
+      ]);
+
       await assessmentRepo.updateAssessment(assessmentId, {
         status: 'COMPLETED',
         score: Math.round(finalScore),
@@ -125,9 +134,6 @@ export const handler = async (event: SQSEvent) => {
         codeQualityScore,
         runnabilityScore,
         aiAnalysisScore: aiPatternsResult.analysis.score,
-
-        repoSnapshot: context,
-        repoMap: repoMapResult.repoMap || null,
 
         // Relational Nested Creates
         requirements: {
