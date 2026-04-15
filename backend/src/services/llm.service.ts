@@ -1,8 +1,6 @@
-import { ChatOpenAI } from '@langchain/openai';
-import { PromptTemplate } from '@langchain/core/prompts';
-import { BaseMessage } from '@langchain/core/messages';
+import OpenAI from 'openai';
 
-export type LLMProvider = 'openai' | 'anthropic';
+export type LLMProvider = 'openai';
 
 export interface LLMUsageStats {
   inputTokens: number;
@@ -13,7 +11,7 @@ export interface LLMUsageStats {
 }
 
 export class LLMService {
-  private readonly model: ChatOpenAI;
+  private readonly openai: OpenAI;
   private readonly provider: LLMProvider;
   private readonly modelName: string;
 
@@ -27,18 +25,33 @@ export class LLMService {
   constructor(provider: LLMProvider = 'openai', apiKey: string, modelName?: string) {
     this.provider = provider;
     this.modelName = modelName || 'gpt-4o';
-    this.model = new ChatOpenAI({
-      openAIApiKey: apiKey,
-      modelName: this.modelName,
+    this.openai = new OpenAI({
+      apiKey: apiKey,
+    });
+  }
+
+  private async callOpenAI(prompt: string, serviceName: string) {
+    console.log(`[LLMService] Calling OpenAI for ${serviceName}...`);
+    const response = await this.openai.chat.completions.create({
+      model: this.modelName,
+      messages: [{ role: 'user', content: prompt }],
+      response_format: { type: 'json_object' },
       temperature: 0,
     });
+
+    const usage = this.calculateUsage(response, serviceName);
+    const content = response.choices[0].message.content || '{}';
+
+    return {
+      content: JSON.parse(content),
+      usage,
+    };
   }
 
   async extractRequirements(
     instructions: string
   ): Promise<{ requirements: any[]; usage: LLMUsageStats | null }> {
-    console.log(`[LLMService] Starting extractRequirements...`);
-    const prompt = PromptTemplate.fromTemplate(`
+    const prompt = `
 You are a Principal Requirement Engineer and Technical Architect.
 Your mission is to decompose the provided assignment text into a set of atomic, testable, and unambiguous technical requirements.
 
@@ -49,29 +62,26 @@ Your mission is to decompose the provided assignment text into a set of atomic, 
 4. **Implementation Hints**: Based on the context, suggest specific directories/files where these should logically reside to guide the codebase auditor.
 
 ### **Output JSON Format:**
-[
-  {{
-    "id": "REQ_01",
-    "text": "Implementation of JWT-based Authentication middleware with 1-hour expiration.",
-    "category": "Security",
-    "suggestedFiles": ["src/middleware/auth.ts", "src/services/token.service.ts"]
-  }}
-]
+{
+  "requirements": [
+    {
+      "id": "REQ_01",
+      "text": "Implementation of JWT-based Authentication middleware with 1-hour expiration.",
+      "category": "Security",
+      "suggestedFiles": ["src/middleware/auth.ts", "src/services/token.service.ts"]
+    }
+  ]
+}
 
 ### **Assignment Text:**
-{instructions}
-`);
+${instructions}
 
-    const chain = prompt.pipe(this.model);
-    const response = (await chain.invoke({ instructions })) as BaseMessage;
-    const usage = this.calculateUsage(response, 'extractRequirements');
+Return the response in valid JSON format.
+`;
 
-    const content =
-      typeof response.content === 'string' ? response.content : JSON.stringify(response.content);
-    const jsonStr = content.match(/\[[\s\S]*\]/)?.[0] || content;
-
+    const { content, usage } = await this.callOpenAI(prompt, 'extractRequirements');
     return {
-      requirements: JSON.parse(jsonStr),
+      requirements: content.requirements || [],
       usage,
     };
   }
@@ -80,8 +90,7 @@ Your mission is to decompose the provided assignment text into a set of atomic, 
     fileNames: string[],
     repoSnapshot: string
   ): Promise<{ repoMap: any; usage: LLMUsageStats | null }> {
-    console.log(`[LLMService] Starting generateRepoMap... (${fileNames.length} files)`);
-    const prompt = PromptTemplate.fromTemplate(`
+    const prompt = `
 You are a Staff Software Engineer analyzing a new repository structure.
 Generate a high-fidelity map of the codebase to help the auditing pipeline understand the project context.
 
@@ -91,31 +100,28 @@ Generate a high-fidelity map of the codebase to help the auditing pipeline under
 3. **Strict JSON**: Return ONLY valid JSON.
 
 ### **Output JSON Format:**
-{{
-  "tree": [
-    ${fileNames.map((f) => `"${f}"`).join(',')}
-  ],
-  "files": {{
-    "path/to/file.ts": {{
-      "summary": "2-3 sentences describing what this file does"
-    }}
-  }}
-}}
+{
+  "repoMap": {
+    "tree": [
+      ${fileNames.map((f) => `"${f}"`).join(',')}
+    ],
+    "files": {
+      "path/to/file.ts": {
+        "summary": "2-3 sentences describing what this file does"
+      }
+    }
+  }
+}
 
 ### Candidate's Code Snapshot:
-{repoSnapshot}
-`);
+${repoSnapshot}
 
-    const chain = prompt.pipe(this.model);
-    const response = (await chain.invoke({ repoSnapshot })) as BaseMessage;
-    const usage = this.calculateUsage(response, 'generateRepoMap');
+Return the response in valid JSON format.
+`;
 
-    const content =
-      typeof response.content === 'string' ? response.content : JSON.stringify(response.content);
-    const jsonStr = content.match(/\{[\s\S]*\}/)?.[0] || content;
-
+    const { content, usage } = await this.callOpenAI(prompt, 'generateRepoMap');
     return {
-      repoMap: JSON.parse(jsonStr),
+      repoMap: content.repoMap || content,
       usage,
     };
   }
@@ -123,8 +129,7 @@ Generate a high-fidelity map of the codebase to help the auditing pipeline under
   async analyzeCodeQuality(
     repoSnapshot: string
   ): Promise<{ analysis: any; usage: LLMUsageStats | null }> {
-    console.log(`[LLMService] Starting analyzeCodeQuality...`);
-    const prompt = PromptTemplate.fromTemplate(`
+    const prompt = `
 You are a Senior Technical Auditor and Lead Software Architect.
 Perform a deep-dive analysis of the codebase's health, focusing on long-term maintainability and production readiness.
 
@@ -140,38 +145,32 @@ Perform a deep-dive analysis of the codebase's health, focusing on long-term mai
 - **76-100**: Senior / Production grade (Scalable, elegant, robust).
 
 ### Candidate's Code Snapshot:
-{repoSnapshot}
+${repoSnapshot}
 
 ### Output JSON Format:
-{{
+{
   "score": 0-100,
-  "breakdown": {{
+  "breakdown": {
     "readability": 0-100,
     "structure": 0-100,
     "naming": 0-100,
     "bestPractices": 0-100
-  }},
+  },
   "summary": "Executive summary of technical health",
   "issues": ["Concrete issue 1 (e.g., Circular dependency in X)", "Concrete issue 2"]
-}}
-`);
+}
 
-    const chain = prompt.pipe(this.model);
-    const response = (await chain.invoke({ repoSnapshot })) as BaseMessage;
-    const usage = this.calculateUsage(response, 'analyzeCodeQuality');
+Return the response in valid JSON format.
+`;
 
-    const content =
-      typeof response.content === 'string' ? response.content : JSON.stringify(response.content);
-    const jsonStr = content.match(/\{[\s\S]*\}/)?.[0] || content;
-
-    return { analysis: JSON.parse(jsonStr), usage };
+    const { content, usage } = await this.callOpenAI(prompt, 'analyzeCodeQuality');
+    return { analysis: content, usage };
   }
 
   async analyzeRunnability(
     repoSnapshot: string
   ): Promise<{ analysis: any; usage: LLMUsageStats | null }> {
-    console.log(`[LLMService] Starting analyzeRunnability...`);
-    const prompt = PromptTemplate.fromTemplate(`
+    const prompt = `
 You are a Senior DevOps and Site Reliability Engineer (SRE).
 Evaluate the codebase for "Production Readiness" and "Ease of Deployment."
 
@@ -187,43 +186,37 @@ Evaluate the codebase for "Production Readiness" and "Ease of Deployment."
 - **81-100**: Cloud Native (CI/CD ready, hardened Docker, optimized setup).
 
 ### Candidate's Code Snapshot:
-{repoSnapshot}
+${repoSnapshot}
 
 ### Output JSON Format:
-{{
+{
   "score": 0-100,
   "hasDocker": boolean,
   "hasEnvExample": boolean,
   "hasScripts": boolean,
   "ciDetected": boolean,
-  "testDetection": {{
+  "testDetection": {
     "hasTests": boolean,
     "language": "node | python | go | unknown",
     "framework": "jest | vitest | mocha | pytest | go test | unknown",
     "command": "exact command string to run tests",
-    "path": "folder path where tests are located",
-  }},
+    "path": "folder path where tests are located"
+  },
   "summary": "SRE assessment of deployability",
   "issues": ["Specific infrastructure flaw..."]
-}}
-`);
+}
 
-    const chain = prompt.pipe(this.model);
-    const response = (await chain.invoke({ repoSnapshot })) as BaseMessage;
-    const usage = this.calculateUsage(response, 'analyzeRunnability');
+Return the response in valid JSON format.
+`;
 
-    const content =
-      typeof response.content === 'string' ? response.content : JSON.stringify(response.content);
-    const jsonStr = content.match(/\{[\s\S]*\}/)?.[0] || content;
-
-    return { analysis: JSON.parse(jsonStr), usage };
+    const { content, usage } = await this.callOpenAI(prompt, 'analyzeRunnability');
+    return { analysis: content, usage };
   }
 
   async analyzeAIPatterns(
     repoSnapshot: string
   ): Promise<{ analysis: any; usage: LLMUsageStats | null }> {
-    console.log(`[LLMService] Starting analyzeAIPatterns...`);
-    const prompt = PromptTemplate.fromTemplate(`
+    const prompt = `
 You are a highly specialized forensic code analyst and expert at detecting "AI fingerprints" and LLM-generated code.
 Your goal is to determine the probability that the provided code was generated by an AI assistant (like ChatGPT, Claude, or Copilot).
 
@@ -241,33 +234,28 @@ Your goal is to determine the probability that the provided code was generated b
 - **71-100**: Highly Likely AI (Sterile, textbook, generic, or perfectly consistent signature).
 
 ### Candidate's Code Snapshot:
-{repoSnapshot}
+${repoSnapshot}
 
 ### Output JSON Format:
-{{
-  "score": 0-100, // Probability of being AI-generated (High = Likely AI)
-  "confidence": 0-100, // Your confidence in this detection
-  "summary": "1-sentence verdict on AI presence",
-}}
-`);
+{
+  "score": 0-100,
+  "confidence": 0-100,
+  "summary": "1-sentence verdict on AI presence"
+}
 
-    const chain = prompt.pipe(this.model);
-    const response = (await chain.invoke({ repoSnapshot })) as BaseMessage;
-    const usage = this.calculateUsage(response, 'analyzeAIPatterns');
+Return the response in valid JSON format.
+`;
 
-    const content =
-      typeof response.content === 'string' ? response.content : JSON.stringify(response.content);
-    const jsonStr = content.match(/\{[\s\S]*\}/)?.[0] || content;
-
-    return { analysis: JSON.parse(jsonStr), usage };
+    const { content, usage } = await this.callOpenAI(prompt, 'analyzeAIPatterns');
+    return { analysis: content, usage };
   }
 
   async evaluateRequirements(
     repoSnapshot: string,
     requirements: any[]
   ): Promise<{ evaluation: any[]; usage: LLMUsageStats | null }> {
-    console.log(`[LLMService] Starting evaluateRequirements...`);
-    const prompt = PromptTemplate.fromTemplate(`
+    const requirementsList = requirements.map((r) => `- [${r.id}] ${r.text}`).join('\n');
+    const prompt = `
 You are a Chief QA Auditor. You must cross-reference the candidate's implementation against the extracted requirements.
 Do NOT be lenient. If a feature is present but missing a critical edge case defined in the requirement, mark it PARTIAL.
 
@@ -280,33 +268,28 @@ Do NOT be lenient. If a feature is present but missing a critical edge case defi
    - NOT_MET: No evidence of implementation.
 
 ### Candidate's Code Snapshot:
-{repoSnapshot}
+${repoSnapshot}
 
 ### Requirements list to check:
-{requirementsList}
+${requirementsList}
 
-### Output JSON Format (Array):
-[
-  {{
-    "id": "REQ_X",
-    "status": "MET | PARTIAL | NOT_MET",
-    "evidence": {{ "file": "path/to/file.ts", "snippet": "actual code snippet" }},
-    "reasoning": "Technical explanation of the find"
-  }}
-]
-`);
+### Output JSON Format:
+{
+  "evaluation": [
+    {
+      "id": "REQ_X",
+      "status": "MET | PARTIAL | NOT_MET",
+      "evidence": { "file": "path/to/file.ts", "snippet": "actual code snippet" },
+      "reasoning": "Technical explanation of the find"
+    }
+  ]
+}
 
-    const requirementsList = requirements.map((r) => `- [${r.id}] ${r.text}`).join('\n');
+Return the response in valid JSON format.
+`;
 
-    const chain = prompt.pipe(this.model);
-    const response = (await chain.invoke({ repoSnapshot, requirementsList })) as BaseMessage;
-    const usage = this.calculateUsage(response, 'evaluateRequirements');
-
-    const content =
-      typeof response.content === 'string' ? response.content : JSON.stringify(response.content);
-    const jsonStr = content.match(/\[[\s\S]*\]/)?.[0] || content;
-
-    return { evaluation: JSON.parse(jsonStr), usage };
+    const { content, usage } = await this.callOpenAI(prompt, 'evaluateRequirements');
+    return { evaluation: content.evaluation || content, usage };
   }
 
   async generateFinalReport(inputs: {
@@ -317,18 +300,17 @@ Do NOT be lenient. If a feature is present but missing a critical edge case defi
     aiAnalysis: any;
     score: number;
   }): Promise<{ report: any; usage: LLMUsageStats | null }> {
-    console.log(`[LLMService] Starting generateFinalReport...`);
-    const prompt = PromptTemplate.fromTemplate(`
+    const prompt = `
 You are a Chief Technology Officer (CTO). You are performing the final review of a candidate's technical assessment.
 Your goal is to synthesize multiple analysis signals into a final verdict. Be objective and critical.
 
 ### **CTO's Ground Truth (Provided Inputs):**
-Score: {score}
-Requirements: {requirementsEvaluation}
-Quality Analysis: {codeQuality}
-DevOps Status: {runnability}
-History: {commitAnalysis}
-AI Forensic Scan: {aiAnalysis}
+Score: ${inputs.score}
+Requirements: ${JSON.stringify(inputs.requirementsEvaluation)}
+Quality Analysis: ${JSON.stringify(inputs.codeQuality)}
+DevOps Status: ${JSON.stringify(inputs.runnability)}
+History: ${JSON.stringify(inputs.commitAnalysis)}
+AI Forensic Scan: ${JSON.stringify(inputs.aiAnalysis)}
 
 ### **Report Directives:**
 1. **Veritable Summary**: Synthesize the "soul" of the candidate's work. Are they a "Careful Architect" or an "LLM Copy-Paster"?
@@ -339,43 +321,32 @@ AI Forensic Scan: {aiAnalysis}
 3. **The "Pressure Test"**: Generate 3-4 interview questions that specifically probe the candidate's WEAKEST areas or "Suspicious" AI patterns.
 
 ### Output JSON Format:
-{{
-  "score": {score},
-  "summary": "Executive summary of the candidate's profile.",
-  "strengths": ["Strategic strengths..."],
-  "weaknesses": ["Specific technical gaps..."],
-  "hiringRecommendation": "STRONG_HIRE | HIRE | NO_HIRE",
-  "interviewQuestions": [
-    {{
-      "question": "Probing question about X...",
-      "focusArea": "Reasoning for asking"
-    }}
-  ]
-}}
-`);
+{
+  "report": {
+    "score": ${inputs.score},
+    "summary": "Executive summary of the candidate's profile.",
+    "strengths": ["Strategic strengths..."],
+    "weaknesses": ["Specific technical gaps..."],
+    "hiringRecommendation": "STRONG_HIRE | HIRE | NO_HIRE",
+    "interviewQuestions": [
+      {
+        "question": "Probing question about X...",
+        "focusArea": "Reasoning for asking"
+      }
+    ]
+  }
+}
 
-    const chain = prompt.pipe(this.model);
-    const response = (await chain.invoke({
-      score: inputs.score,
-      requirementsEvaluation: JSON.stringify(inputs.requirementsEvaluation),
-      codeQuality: JSON.stringify(inputs.codeQuality),
-      runnability: JSON.stringify(inputs.runnability),
-      commitAnalysis: JSON.stringify(inputs.commitAnalysis),
-      aiAnalysis: JSON.stringify(inputs.aiAnalysis),
-    })) as BaseMessage;
-    const usage = this.calculateUsage(response, 'generateFinalReport');
+Return the response in valid JSON format.
+`;
 
-    const content =
-      typeof response.content === 'string' ? response.content : JSON.stringify(response.content);
-    const jsonStr = content.match(/\{[\s\S]*\}/)?.[0] || content;
-
-    return { report: JSON.parse(jsonStr), usage };
+    const { content, usage } = await this.callOpenAI(prompt, 'generateFinalReport');
+    return { report: content.report || content, usage };
   }
 
   async analyzeCommits(
     commitMessages: string[]
   ): Promise<{ analysis: any; usage: LLMUsageStats | null }> {
-    console.log(`[LLMService] Starting analyzeCommits... (${commitMessages.length} messages)`);
     if (commitMessages.length === 0) {
       return {
         analysis: {
@@ -388,7 +359,8 @@ AI Forensic Scan: {aiAnalysis}
       };
     }
 
-    const prompt = PromptTemplate.fromTemplate(`
+    const commitList = commitMessages.map((m) => `- ${m}`).join('\n');
+    const prompt = `
 You are a Technical Lead analyzing the "Development Narrative" through Git commit history.
 Determine how the developer solves problems: step-by-step evolution or giant, unexplained dumps of code?
 
@@ -404,62 +376,39 @@ Determine how the developer solves problems: step-by-step evolution or giant, un
 - "MIXED": Inconsistency between different days or tasks.
 
 ### Commit Messages:
-{commitMessages}
+${commitList}
 
 ### Output JSON Format:
-{{
-  "qualityScore": 0-100, // High = Professional and descriptive
+{
+  "qualityScore": 0-100,
   "pattern": "CONVENTIONAL | DESCRIPTIVE | RANDOM | MIXED",
-  "summary": "1-sentence narrative of the history",
-}}
-`);
+  "summary": "1-sentence narrative of the history"
+}
 
-    const commitList = commitMessages.map((m) => `- ${m}`).join('\n');
+Return the response in valid JSON format.
+`;
 
-    const chain = prompt.pipe(this.model);
-    const response = (await chain.invoke({
-      commitMessages: commitList,
-    })) as BaseMessage;
-
-    const usage = this.calculateUsage(response, 'commitAnalysis');
-    const content =
-      typeof response.content === 'string' ? response.content : JSON.stringify(response.content);
-    const jsonStr = content.match(/\{[\s\S]*\}/)?.[0] || content;
-
+    const { content, usage } = await this.callOpenAI(prompt, 'analyzeCommits');
     return {
-      analysis: JSON.parse(jsonStr),
+      analysis: content,
       usage,
     };
   }
 
-  private calculateUsage(response: BaseMessage, service: string): LLMUsageStats | null {
-    // Try to get standardized usage first, then fall back to response_metadata
-    const usageMetadata = (response as any).usage_metadata;
-    const tokenUsage = (response as any).response_metadata?.tokenUsage;
-    const usage = usageMetadata || tokenUsage;
+  private calculateUsage(response: OpenAI.Chat.Completions.ChatCompletion, service: string): LLMUsageStats | null {
+    const usage = response.usage;
 
     if (!usage) {
       console.log('[LLMService] No usage metadata found in response.');
       return null;
     }
 
-    // Input and Output tokens extraction
-    const inputTokens = usage.input_tokens || usage.prompt_tokens || usage.promptTokens || 0;
-    const outputTokens =
-      usage.output_tokens || usage.completion_tokens || usage.completionTokens || 0;
+    const inputTokens = usage.prompt_tokens || 0;
+    const outputTokens = usage.completion_tokens || 0;
+    
+    // Extract cached tokens if available
+    const cachedTokens = (usage as any).prompt_tokens_details?.cached_tokens || 0;
 
-    // Extract cached tokens - supporting multiple paths for OpenAI/Anthropic and LangChain versions
-    const cachedTokens =
-      usage.input_token_details?.cache_read ||
-      usageMetadata?.input_token_details?.cache_read_input_tokens ||
-      usage.prompt_tokens_details?.cached_tokens ||
-      usage.promptTokensDetails?.cachedTokens || // As reported by user
-      tokenUsage?.prompt_tokens_details?.cached_tokens ||
-      tokenUsage?.promptTokensDetails?.cachedTokens ||
-      usage.cache_read_input_tokens ||
-      0;
-
-    // Get pricing
     const providerPricing = (this.PRICING as any)[this.provider];
     const modelPricing = providerPricing?.[this.modelName] || { input: 0, output: 0 };
 
