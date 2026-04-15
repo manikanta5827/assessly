@@ -220,7 +220,7 @@ You are a DevOps expert. Analyze the codebase snapshot for setup clarity and "ru
   ): Promise<{ analysis: any; usage: LLMUsageStats | null }> {
     console.log(`[LLMService] Starting analyzeAIPatterns...`);
     const prompt = PromptTemplate.fromTemplate(`
-You are an expert at detecting AI-generated code patterns. Analyze the code style consistency, repetition, and commit behavior.
+You are an expert at detecting AI-generated code patterns. Analyze the code style consistency, repetition.
 
 ### Candidate's Code Snapshot:
 {repoSnapshot}
@@ -233,7 +233,6 @@ You are an expert at detecting AI-generated code patterns. Analyze the code styl
     "uniformStyle": boolean,
     "lowIterationEvidence": boolean,
     "genericPatterns": boolean,
-    "commitMismatch": boolean
   }},
   "summary": "Brief summary",
   "reasoning": "Detailed reasoning"

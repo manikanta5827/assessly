@@ -25,14 +25,14 @@ model Assessment {
 
   status AssessmentStatus @default(PENDING)
 
-  score              Int?
-  
-  summary            String? @map("summary")
-  
-  requirementScore   Float?  @map("requirement_score")
-  codeQualityScore   Float?  @map("code_quality_score")
-  runnabilityScore   Float?  @map("runnability_score")
-  aiAnalysisScore    Float?  @map("ai_analysis_score")
+  score Int?
+
+  summary String? @map("summary")
+
+  requirementScore Float? @map("requirement_score")
+  codeQualityScore Float? @map("code_quality_score")
+  runnabilityScore Float? @map("runnability_score")
+  aiAnalysisScore  Float? @map("ai_analysis_score")
 
   requirements       ProjectRequirements[]
   codeQuality        CodeQuality?
@@ -41,13 +41,13 @@ model Assessment {
   commitAnalysis     CommitAnalysis?
   finalReport        FinalReport?
   interviewQuestions InterviewQuestion[]
-  repoMap            Json? @map("repo_map")
+  repoMap            Json?                 @map("repo_map")
 
-  aiUsageDetection   Json? @map("ai_usage_detection") // Legacy
-  
+  aiUsageDetection Json? @map("ai_usage_detection") // Legacy
+
   testExecuted Boolean @default(false) @map("test_executed")
   testResults  Json?   @map("test_results")
-  
+
   // Usage tracking
   inputTokens   Int?     @map("input_tokens")
   outputTokens  Int?     @map("output_tokens")
@@ -77,91 +77,90 @@ enum RequirementStatus {
 }
 
 model ProjectRequirements {
-  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  assessmentId    String   @db.Uuid
-  requirementId   String   @map("requirement_id")
-  text            String
-  category        String?
-  suggestedFiles  String[] @map("suggested_files")
-  
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  assessmentId   String   @db.Uuid
+  requirementId  String   @map("requirement_id")
+  text           String
+  category       String?
+  suggestedFiles String[] @map("suggested_files")
+
   status          RequirementStatus @default(PENDING)
   confidence      Float?
-  evidenceFile    String?  @map("evidence_file")
-  evidenceSnippet String?  @map("evidence_snippet")
+  evidenceFile    String?           @map("evidence_file")
+  evidenceSnippet String?           @map("evidence_snippet")
   reasoning       String?
 
-  assessment      Assessment @relation(fields: [assessmentId], references: [id], onDelete: Cascade)
+  assessment Assessment @relation(fields: [assessmentId], references: [id], onDelete: Cascade)
 
-  @@map("requirements")
+  @@map("project_requirements")
 }
 
 model CodeQuality {
-  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  assessmentId    String   @unique @db.Uuid
-  score           Float
-  readability     Float
-  structure       Float
-  naming          Float
-  bestPractices   Float    @map("best_practices")
-  summary         String
-  issues          String[]
+  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  assessmentId  String   @unique @db.Uuid
+  score         Float
+  readability   Float
+  structure     Float
+  naming        Float
+  bestPractices Float    @map("best_practices")
+  summary       String
+  issues        String[]
 
-  assessment      Assessment @relation(fields: [assessmentId], references: [id], onDelete: Cascade)
+  assessment Assessment @relation(fields: [assessmentId], references: [id], onDelete: Cascade)
 
-  @@map("assessment_code_quality")
+  @@map("code_quality")
 }
 
 model Runnability {
-  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  assessmentId    String   @unique @db.Uuid
-  score           Float
-  hasDocker       Boolean  @map("has_docker")
-  hasEnvExample   Boolean  @map("has_env_example")
-  hasScripts      Boolean  @map("has_scripts")
-  ciDetected      Boolean  @map("ci_detected")
-  summary         String
-  issues          String[]
+  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  assessmentId  String   @unique @db.Uuid
+  score         Float
+  hasDocker     Boolean  @map("has_docker")
+  hasEnvExample Boolean  @map("has_env_example")
+  hasScripts    Boolean  @map("has_scripts")
+  ciDetected    Boolean  @map("ci_detected")
+  summary       String
+  issues        String[]
 
-  hasTests        Boolean? @map("has_tests")
-  testLanguage    String?  @map("test_language")
-  testFramework   String?  @map("test_framework")
-  testCommand     String?  @map("test_command")
-  testPath        String?  @map("test_path")
-  testReason      String?  @map("test_reason")
+  hasTests      Boolean? @map("has_tests")
+  testLanguage  String?  @map("test_language")
+  testFramework String?  @map("test_framework")
+  testCommand   String?  @map("test_command")
+  testPath      String?  @map("test_path")
+  testReason    String?  @map("test_reason")
 
-  assessment      Assessment @relation(fields: [assessmentId], references: [id], onDelete: Cascade)
+  assessment Assessment @relation(fields: [assessmentId], references: [id], onDelete: Cascade)
 
-  @@map("assessment_runnability")
+  @@map("runnability")
 }
 
 model AiAnalysis {
-  id                   String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  assessmentId         String   @unique @db.Uuid
+  id                   String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  assessmentId         String  @unique @db.Uuid
   score                Float
   confidence           Float
-  uniformStyle         Boolean  @map("uniform_style")
-  lowIterationEvidence Boolean  @map("low_iteration_evidence")
-  genericPatterns      Boolean  @map("generic_patterns")
-  commitMismatch       Boolean  @map("commit_mismatch")
+  uniformStyle         Boolean @map("uniform_style")
+  lowIterationEvidence Boolean @map("low_iteration_evidence")
+  genericPatterns      Boolean @map("generic_patterns")
   summary              String
   reasoning            String
 
-  assessment           Assessment @relation(fields: [assessmentId], references: [id], onDelete: Cascade)
+  assessment Assessment @relation(fields: [assessmentId], references: [id], onDelete: Cascade)
 
-  @@map("assessment_ai_analysis")
+  @@map("ai_analysis")
 }
 
 model CommitAnalysis {
-  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  assessmentId    String   @unique @db.Uuid
-  qualityScore    Float    @map("quality_score")
-  pattern         String
-  summary         String
-  reasoning       String
+  id           String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  assessmentId String @unique @db.Uuid
+  qualityScore Float  @map("quality_score")
+  pattern      String
+  summary      String
+  reasoning    String
 
-  assessment      Assessment @relation(fields: [assessmentId], references: [id], onDelete: Cascade)
+  assessment Assessment @relation(fields: [assessmentId], references: [id], onDelete: Cascade)
 
-  @@map("assessment_commit_analysis")
+  @@map("commit_analysis")
 }
 
 model FinalReport {
@@ -173,18 +172,18 @@ model FinalReport {
   weaknesses           String[]
   hiringRecommendation String   @map("hiring_recommendation")
 
-  assessment           Assessment @relation(fields: [assessmentId], references: [id], onDelete: Cascade)
+  assessment Assessment @relation(fields: [assessmentId], references: [id], onDelete: Cascade)
 
-  @@map("assessment_final_report")
+  @@map("final_report")
 }
 
 model InterviewQuestion {
-  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  assessmentId    String   @db.Uuid
-  question        String
-  focusArea       String   @map("focus_area")
+  id           String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  assessmentId String @db.Uuid
+  question     String
+  focusArea    String @map("focus_area")
 
-  assessment      Assessment @relation(fields: [assessmentId], references: [id], onDelete: Cascade)
+  assessment Assessment @relation(fields: [assessmentId], references: [id], onDelete: Cascade)
 
   @@map("interview_questions")
 }
