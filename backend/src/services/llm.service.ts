@@ -85,7 +85,7 @@ You are an expert requirement engineer. Your task is to extract clear, testable,
 
     const chain = prompt.pipe(this.model);
     const response = (await chain.invoke({ instructions })) as BaseMessage;
-    const usage = this.calculateUsage(response);
+    const usage = this.calculateUsage(response, 'extractRequirements');
 
     const content =
       typeof response.content === 'string' ? response.content : JSON.stringify(response.content);
@@ -129,7 +129,7 @@ You are a senior developer analyzing a codebase. Generate a JSON map of filename
 
     const chain = prompt.pipe(this.model);
     const response = (await chain.invoke({ repoSnapshot })) as BaseMessage;
-    const usage = this.calculateUsage(response);
+    const usage = this.calculateUsage(response, 'generateRepoMap');
 
     const content =
       typeof response.content === 'string' ? response.content : JSON.stringify(response.content);
@@ -167,7 +167,7 @@ You are an expert code auditor. Analyze the provided codebase snapshot for quali
 
     const chain = prompt.pipe(this.model);
     const response = (await chain.invoke({ repoSnapshot })) as BaseMessage;
-    const usage = this.calculateUsage(response);
+    const usage = this.calculateUsage(response, 'analyzeCodeQuality');
 
     const content = typeof response.content === 'string' ? response.content : JSON.stringify(response.content);
     const jsonStr = content.match(/\{[\s\S]*\}/)?.[0] || content;
@@ -207,7 +207,7 @@ You are a DevOps expert. Analyze the codebase snapshot for setup clarity and "ru
 
     const chain = prompt.pipe(this.model);
     const response = (await chain.invoke({ repoSnapshot })) as BaseMessage;
-    const usage = this.calculateUsage(response);
+    const usage = this.calculateUsage(response, 'analyzeRunnability');
 
     const content = typeof response.content === 'string' ? response.content : JSON.stringify(response.content);
     const jsonStr = content.match(/\{[\s\S]*\}/)?.[0] || content;
@@ -241,7 +241,7 @@ You are an expert at detecting AI-generated code patterns. Analyze the code styl
 
     const chain = prompt.pipe(this.model);
     const response = (await chain.invoke({ repoSnapshot })) as BaseMessage;
-    const usage = this.calculateUsage(response);
+    const usage = this.calculateUsage(response, 'analyzeAIPatterns');
 
     const content = typeof response.content === 'string' ? response.content : JSON.stringify(response.content);
     const jsonStr = content.match(/\{[\s\S]*\}/)?.[0] || content;
@@ -282,7 +282,7 @@ Evaluate the candidate's implementation against specific requirements.
 
     const chain = prompt.pipe(this.model);
     const response = (await chain.invoke({ repoSnapshot, requirementsList })) as BaseMessage;
-    const usage = this.calculateUsage(response);
+    const usage = this.calculateUsage(response, 'evaluateRequirements');
 
     const content = typeof response.content === 'string' ? response.content : JSON.stringify(response.content);
     const jsonStr = content.match(/\[[\s\S]*\]/)?.[0] || content;
@@ -338,7 +338,7 @@ AI Analysis: {aiAnalysis}
       commitAnalysis: JSON.stringify(inputs.commitAnalysis),
       aiAnalysis: JSON.stringify(inputs.aiAnalysis),
     })) as BaseMessage;
-    const usage = this.calculateUsage(response);
+    const usage = this.calculateUsage(response, 'generateFinalReport');
 
     const content = typeof response.content === 'string' ? response.content : JSON.stringify(response.content);
     const jsonStr = content.match(/\{[\s\S]*\}/)?.[0] || content;
@@ -413,7 +413,7 @@ Evaluate the quality of the commit messages, look for patterns (like Conventiona
       commitMessages: commitList,
     })) as BaseMessage;
 
-    const usage = this.calculateUsage(response);
+    const usage = this.calculateUsage(response, 'commitAnalysis');
     const content =
       typeof response.content === 'string' ? response.content : JSON.stringify(response.content);
     const jsonStr = content.match(/\{[\s\S]*\}/)?.[0] || content;
@@ -424,7 +424,7 @@ Evaluate the quality of the commit messages, look for patterns (like Conventiona
     };
   }
 
-  private calculateUsage(response: BaseMessage): LLMUsageStats | null {
+  private calculateUsage(response: BaseMessage, service: string): LLMUsageStats | null {
     // Try to get standardized usage first, then fall back to response_metadata
     const usageMetadata = (response as any).usage_metadata;
     const tokenUsage = (response as any).response_metadata?.tokenUsage;
@@ -463,17 +463,17 @@ Evaluate the quality of the commit messages, look for patterns (like Conventiona
 
     console.log('--------------------------------------------------');
     console.log(
-      `[LLMService] Usage - Provider: ${this.provider}, Model: ${this.modelName}`
+      `[${service}] Usage - Provider: ${this.provider}, Model: ${this.modelName}`
     );
-    console.log(`[LLMService] Input Tokens:  ${inputTokens}`);
+    console.log(`[${service}] Input Tokens:  ${inputTokens}`);
     if (cachedTokens > 0) {
       console.log(
-        `[LLMService] Cached Tokens: ${cachedTokens} (SAVED $${((cachedTokens / 1_000_000) * modelPricing.input * 0.5).toFixed(4)})`
+        `[${service}] Cached Tokens: ${cachedTokens} (SAVED $${((cachedTokens / 1_000_000) * modelPricing.input * 0.5).toFixed(4)})`
       );
     }
-    console.log(`[LLMService] Output Tokens: ${outputTokens}`);
-    console.log(`[LLMService] Total Tokens:  ${inputTokens + outputTokens}`);
-    console.log(`[LLMService] Estimated Cost: $${totalCost.toFixed(4)} USD`);
+    console.log(`[${service}] Output Tokens: ${outputTokens}`);
+    console.log(`[${service}] Total Tokens:  ${inputTokens + outputTokens}`);
+    console.log(`[${service}] Estimated Cost: $${totalCost.toFixed(4)} USD`);
     console.log('--------------------------------------------------');
 
     return {

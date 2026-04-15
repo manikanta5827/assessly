@@ -43,8 +43,6 @@ model Assessment {
   interviewQuestions InterviewQuestion[]
   repoMap            Json?                 @map("repo_map")
 
-  aiUsageDetection Json? @map("ai_usage_detection") // Legacy
-
   testExecuted Boolean @default(false) @map("test_executed")
   testResults  Json?   @map("test_results")
 
