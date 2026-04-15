@@ -140,12 +140,9 @@ export const handler = async (event: SQSEvent) => {
           create: reqResult.requirements.map((req: any) => {
             const evalMatch = requirementsEval.find((e: any) => e.id === req.id);
             return {
-              requirementId: req.id || 'UNKNOWN',
               text: req.text || '',
               category: req.category || null,
-              suggestedFiles: req.suggestedFiles || [],
               status: evalMatch ? evalMatch.status : 'PENDING',
-              confidence: evalMatch ? evalMatch.confidence : 0,
               evidenceFile: evalMatch?.evidence?.file || null,
               evidenceSnippet: evalMatch?.evidence?.snippet || null,
               reasoning: evalMatch ? evalMatch.reasoning : null,
@@ -177,16 +174,12 @@ export const handler = async (event: SQSEvent) => {
             testFramework: runnabilityResult.analysis.testDetection?.framework || null,
             testCommand: runnabilityResult.analysis.testDetection?.command || null,
             testPath: runnabilityResult.analysis.testDetection?.path || null,
-            testReason: runnabilityResult.analysis.testDetection?.reason || null,
           },
         },
         aiAnalysis: {
           create: {
             score: aiPatternsResult.analysis.score || 0,
             confidence: aiPatternsResult.analysis.confidence || 0,
-            uniformStyle: aiPatternsResult.analysis.signals?.uniformStyle || false,
-            lowIterationEvidence: aiPatternsResult.analysis.signals?.lowIterationEvidence || false,
-            genericPatterns: aiPatternsResult.analysis.signals?.genericPatterns || false,
             summary: aiPatternsResult.analysis.summary || '',
             reasoning: aiPatternsResult.analysis.reasoning || '',
           },
@@ -196,7 +189,6 @@ export const handler = async (event: SQSEvent) => {
             qualityScore: commitResult.analysis.qualityScore || 0,
             pattern: commitResult.analysis.pattern || 'UNKNOWN',
             summary: commitResult.analysis.summary || '',
-            reasoning: commitResult.analysis.reasoning || '',
           },
         },
         finalReport: {

@@ -54,32 +54,26 @@ export class LLMService {
   ): Promise<{ requirements: any[]; usage: LLMUsageStats | null }> {
     console.log(`[LLMService] Starting extractRequirements...`);
     const prompt = PromptTemplate.fromTemplate(`
-You are an expert requirement engineer. Your task is to extract clear, testable, and atomic requirements from the provided assignment text.
+You are a Principal Requirement Engineer and Technical Architect.
+Your mission is to decompose the provided assignment text into a set of atomic, testable, and unambiguous technical requirements.
 
-### Extraction Rules:
-- **Atomic Requirements**: Each item must represent a single, specific functionality or technical constraint.
-- **Classification**: Assign a category (Feature, Technical, Security, Documentation, etc.) and an importance score (1-10, where 10 is critical).
-- **Suggested Files**: Based on typical project structures, suggest 1-2 files or directories where this requirement would likely be implemented.
-- **No Duplicates**: Ensure no overlapping or redundant requirements.
-- **Objectivity**: Use professional, technical language.
+### **Extraction Rules:**
+1. **Atomaticity**: Each requirement must represent exactly one pass/fail condition.
+2. **Unambiguity**: Use definitive, technical language (avoid "efficient," "fast," "good"). Use "The system must..."
+3. **Domain Classification**: Categorize correctly (Feature, Technical, Security, Reliability, Documentation).
+4. **Implementation Hints**: Based on the context, suggest specific directories/files where these should logically reside to guide the codebase auditor.
 
-### Output JSON Format:
+### **Output JSON Format:**
 [
   {{
-    "id": "REQ_1",
-    "text": "User authentication - Implement secure sign-in/up using JWT.",
-    "category": "Feature",
-    "suggestedFiles": ["src/services/auth.service.ts", "src/controllers/auth.controller.ts"]
-  }},
-  {{
-    "id": "REQ_2",
-    "text": "API Documentation - Provide Swagger or README endpoints guide.",
-    "category": "Documentation",
-    "suggestedFiles": ["README.md", "openapi.yaml"]
+    "id": "REQ_01",
+    "text": "Implementation of JWT-based Authentication middleware with 1-hour expiration.",
+    "category": "Security",
+    "suggestedFiles": ["src/middleware/auth.ts", "src/services/token.service.ts"]
   }}
 ]
 
-### Assignment Text:
+### **Assignment Text:**
 {instructions}
 `);
 
@@ -103,18 +97,15 @@ You are an expert requirement engineer. Your task is to extract clear, testable,
   ): Promise<{ repoMap: any; usage: LLMUsageStats | null }> {
     console.log(`[LLMService] Starting generateRepoMap... (${fileNames.length} files)`);
     const prompt = PromptTemplate.fromTemplate(`
-### Candidate's Code Snapshot:
-{repoSnapshot}
+You are a Staff Software Engineer analyzing a new repository structure.
+Generate a high-fidelity map of the codebase to help the auditing pipeline understand the project context.
 
----
+### **Auditing Rules:**
+1. **Contextual Summary**: For each file, do NOT just say what it is ("This is a controller"). Say what it *does* for the business logic ("Handles user registration and validation logic").
+2. **Depth**: Focus on core business logic files.
+3. **Strict JSON**: Return ONLY valid JSON.
 
-You are a senior developer analyzing a codebase. Generate a JSON map of filenames to summaries.
-
-### Rules:
-- For each file provided, write a 1-3 sentence summary explaining its purpose in the project.
-- Return ONLY the requested JSON structure.
-
-### Output JSON Format:
+### **Output JSON Format:**
 {{
   "tree": [
     ${fileNames.map((f) => `"${f}"`).join(',')}
@@ -125,6 +116,9 @@ You are a senior developer analyzing a codebase. Generate a JSON map of filename
     }}
   }}
 }}
+
+### Candidate's Code Snapshot:
+{repoSnapshot}
 `);
 
     const chain = prompt.pipe(this.model);
@@ -146,7 +140,19 @@ You are a senior developer analyzing a codebase. Generate a JSON map of filename
   ): Promise<{ analysis: any; usage: LLMUsageStats | null }> {
     console.log(`[LLMService] Starting analyzeCodeQuality...`);
     const prompt = PromptTemplate.fromTemplate(`
-You are an expert code auditor. Analyze the provided codebase snapshot for quality, readability, and best practices.
+You are a Senior Technical Auditor and Lead Software Architect.
+Perform a deep-dive analysis of the codebase's health, focusing on long-term maintainability and production readiness.
+
+### **Core Auditing Signals:**
+1. **Readability & Intent**: Is the code "self-documenting" and does it clearly express its intent?
+2. **Structural Integrity**: Does it follow SOLID principles, or is it a "Big Ball of Mud"?
+3. **Error Resilience**: How robustly does it handle failure? Look for 'naked' try-catches or missing error propagates.
+4. **Type Safety / Strictness**: Especially in TypeScript, check for 'any' types and proper interface usage.
+
+### **Scoring (0-100):**
+- **0-40**: Junior / Prototype level (Hard to maintain, chaotic).
+- **41-75**: Mid-level / Functional (Works well, standard patterns, minor flaws).
+- **76-100**: Senior / Production grade (Scalable, elegant, robust).
 
 ### Candidate's Code Snapshot:
 {repoSnapshot}
@@ -155,13 +161,13 @@ You are an expert code auditor. Analyze the provided codebase snapshot for quali
 {{
   "score": 0-100,
   "breakdown": {{
-    "readability": number,
-    "structure": number,
-    "naming": number,
-    "bestPractices": number
+    "readability": 0-100,
+    "structure": 0-100,
+    "naming": 0-100,
+    "bestPractices": 0-100
   }},
-  "summary": "Concise summary of code quality",
-  "issues": ["Issue 1", "Issue 2"]
+  "summary": "Executive summary of technical health",
+  "issues": ["Concrete issue 1 (e.g., Circular dependency in X)", "Concrete issue 2"]
 }}
 `);
 
@@ -180,7 +186,19 @@ You are an expert code auditor. Analyze the provided codebase snapshot for quali
   ): Promise<{ analysis: any; usage: LLMUsageStats | null }> {
     console.log(`[LLMService] Starting analyzeRunnability...`);
     const prompt = PromptTemplate.fromTemplate(`
-You are a DevOps expert. Analyze the codebase snapshot for setup clarity and "runnability" (Docker, scripts, CI, env files, tests).
+You are a Senior DevOps and Site Reliability Engineer (SRE).
+Evaluate the codebase for "Production Readiness" and "Ease of Deployment."
+
+### **Infrastructure Audit Signals:**
+1. **Environment Maturity**: Are secrets handled via env examples? Is there a clear separation of config?
+2. **Containerization Depth**: If Docker exists, is it production-ready? (Multi-stage builds, non-root users, explicit versioning?)
+3. **Execution Clarity**: Is the README sufficient to start the project from zero in 5 minutes?
+4. **Testability Awareness**: Are tests just present, or are they integrated into a CI philosophy?
+
+### **Scoring (0-100):**
+- **0-40**: Manual / Fragile (No automation, high barrier to entry).
+- **41-80**: Standard (Dockerized, has basic scripts).
+- **81-100**: Cloud Native (CI/CD ready, hardened Docker, optimized setup).
 
 ### Candidate's Code Snapshot:
 {repoSnapshot}
@@ -198,10 +216,9 @@ You are a DevOps expert. Analyze the codebase snapshot for setup clarity and "ru
     "framework": "jest | vitest | mocha | pytest | go test | unknown",
     "command": "exact command string to run tests",
     "path": "folder path where tests are located",
-    "reason": "how you detected the test setup"
   }},
-  "summary": "Summary of setup quality",
-  "issues": ["Issue 1", "Issue 2"]
+  "summary": "SRE assessment of deployability",
+  "issues": ["Specific infrastructure flaw..."]
 }}
 `);
 
@@ -220,22 +237,31 @@ You are a DevOps expert. Analyze the codebase snapshot for setup clarity and "ru
   ): Promise<{ analysis: any; usage: LLMUsageStats | null }> {
     console.log(`[LLMService] Starting analyzeAIPatterns...`);
     const prompt = PromptTemplate.fromTemplate(`
-You are an expert at detecting AI-generated code patterns. Analyze the code style consistency, repetition.
+You are a highly specialized forensic code analyst and expert at detecting "AI fingerprints" and LLM-generated code.
+Your goal is to determine the probability that the provided code was generated by an AI assistant (like ChatGPT, Claude, or Copilot).
+
+### **Detection Signals to Look For:**
+
+1. **"Sterile" Consistency**: Overly perfect, textbook structure across different layers (Controllers, Services, Repos) that lacks the slight idiosyncratic variations typically found in human implementation.
+2. **LLM-style Comments**: Presence of comments that explain "how" the code works in a mechanical way (e.g., "Assigning the user id to the variable"), or overly verbose, polite, and sterile documentation.
+3. **Machine Boilerplate**: Use of specific standard patterns that GPT/Claude frequently output by default (e.g., a specific way of wrapping try/catch, generic error message strings, or textbook implementation of middleware).
+4. **Generic Naming**: Overuse of textbook variable names like 'data', 'result', 'item', 'input' in places where a human would typically use more context-specific names.
+5. **Logic Gap / Hallucination**: Comments describing logic that isn't quite there, or code that is technically perfect but contextually slightly "off."
+
+### **Scoring Rule:**
+- **0-30**: Likely Human (Messy, idiosyncratic, context-specific).
+- **31-70**: Mixed / Assisted (Human-led but with clear AI-assisted chunks).
+- **71-100**: Highly Likely AI (Sterile, textbook, generic, or perfectly consistent signature).
 
 ### Candidate's Code Snapshot:
 {repoSnapshot}
 
 ### Output JSON Format:
 {{
-  "score": 0-100,
-  "confidence": 0-100,
-  "signals": {{
-    "uniformStyle": boolean,
-    "lowIterationEvidence": boolean,
-    "genericPatterns": boolean,
-  }},
-  "summary": "Brief summary",
-  "reasoning": "Detailed reasoning"
+  "score": 0-100, // Probability of being AI-generated (High = Likely AI)
+  "confidence": 0-100, // Your confidence in this detection
+  "summary": "1-sentence verdict on AI presence",
+  "reasoning": "Forensic breakdown of the markers found (NOT a code quality review)"
 }}
 `);
 
@@ -255,23 +281,30 @@ You are an expert at detecting AI-generated code patterns. Analyze the code styl
   ): Promise<{ evaluation: any[]; usage: LLMUsageStats | null }> {
     console.log(`[LLMService] Starting evaluateRequirements...`);
     const prompt = PromptTemplate.fromTemplate(`
-Evaluate the candidate's implementation against specific requirements.
+You are a Chief QA Auditor. You must cross-reference the candidate's implementation against the extracted requirements.
+Do NOT be lenient. If a feature is present but missing a critical edge case defined in the requirement, mark it PARTIAL.
+
+### **Validation Rules:**
+1. **Functional Evidence**: You must find the specific file and line logic that satisfies the requirement.
+2. **Confidence Level**: 0.0 to 1.0. High confidence means you found the specific logic; Low means it might be there but is obscured.
+3. **Status Definitions**: 
+   - MET: Feature is fully implemented as requested.
+   - PARTIAL: Feature exists but has bugs, missing sub-tasks, or edge cases.
+   - NOT_MET: No evidence of implementation.
 
 ### Candidate's Code Snapshot:
 {repoSnapshot}
 
-### Requirements:
+### Requirements list to check:
 {requirementsList}
 
 ### Output JSON Format (Array):
 [
   {{
     "id": "REQ_X",
-    "text": "...",
     "status": "MET | PARTIAL | NOT_MET",
-    "confidence": 0-1,
-    "evidence": {{ "file": "...", "snippet": "..." }},
-    "reasoning": "..."
+    "evidence": {{ "file": "path/to/file.ts", "snippet": "actual code snippet" }},
+    "reasoning": "Technical explanation of the find"
   }}
 ]
 `);
@@ -302,28 +335,36 @@ Evaluate the candidate's implementation against specific requirements.
   ): Promise<{ report: any; usage: LLMUsageStats | null }> {
     console.log(`[LLMService] Starting generateFinalReport...`);
     const prompt = PromptTemplate.fromTemplate(`
-You are a senior engineer writing a hiring evaluation report. Use the provided inputs as ground truth.
-DO NOT recompute scores or re-evaluate requirements.
+You are a Chief Technology Officer (CTO). You are performing the final review of a candidate's technical assessment.
+Your goal is to synthesize multiple analysis signals into a final verdict. Be objective and critical.
 
-### Evaluation Data:
+### **CTO's Ground Truth (Provided Inputs):**
 Score: {score}
-Requirements Evaluation: {requirementsEvaluation}
-Code Quality: {codeQuality}
-Runnability: {runnability}
-Commit Analysis: {commitAnalysis}
-AI Analysis: {aiAnalysis}
+Requirements: {requirementsEvaluation}
+Quality Analysis: {codeQuality}
+DevOps Status: {runnability}
+History: {commitAnalysis}
+AI Forensic Scan: {aiAnalysis}
+
+### **Report Directives:**
+1. **Veritable Summary**: Synthesize the "soul" of the candidate's work. Are they a "Careful Architect" or an "LLM Copy-Paster"?
+2. **Hireability Status**:
+   - **STRONG_HIRE**: Exceeded expectations in architectural depth and infrastructure.
+   - **HIRE**: Solid implementation, met most requirements, standard quality.
+   - **NO_HIRE**: Significant logic gaps, failed critical requirements, or high AI-copying probability.
+3. **The "Pressure Test"**: Generate 3-4 interview questions that specifically probe the candidate's WEAKEST areas or "Suspicious" AI patterns.
 
 ### Output JSON Format:
 {{
   "score": {score},
-  "summary": "2-3 lines overall summary",
-  "strengths": ["...", "..."],
-  "weaknesses": ["...", "..."],
+  "summary": "Executive summary of the candidate's profile.",
+  "strengths": ["Strategic strengths..."],
+  "weaknesses": ["Specific technical gaps..."],
   "hiringRecommendation": "STRONG_HIRE | HIRE | NO_HIRE",
   "interviewQuestions": [
     {{
-      "question": "...",
-      "focusArea": "..."
+      "question": "Probing question about X...",
+      "focusArea": "Reasoning for asking"
     }}
   ]
 }}
@@ -346,20 +387,6 @@ AI Analysis: {aiAnalysis}
     return { report: JSON.parse(jsonStr), usage };
   }
 
-  async analyzeAssessment(
-    repoSnapshot: string,
-    _instructions: string,
-    requirements: any[]
-  ): Promise<{ analysis: any; usage: LLMUsageStats | null }> {
-    // This method is now redundant or can be removed if not used elsewhere.
-    // Keeping a stub if needed for backwards compatibility during migration.
-    return this.evaluateRequirements(repoSnapshot, requirements).then(res => ({
-      analysis: { requirementsEvaluation: res.evaluation },
-      usage: res.usage
-    }));
-  }
-
-
   async analyzeCommits(
     commitMessages: string[]
   ): Promise<{ analysis: any; usage: LLMUsageStats | null }> {
@@ -377,32 +404,28 @@ AI Analysis: {aiAnalysis}
     }
 
     const prompt = PromptTemplate.fromTemplate(`
-You are an expert developer and technical lead. Your task is to analyze the commit history of a repository.
-Evaluate the quality of the commit messages, look for patterns (like Conventional Commits), and determine if the messages are descriptive or random.
+You are a Technical Lead analyzing the "Development Narrative" through Git commit history.
+Determine how the developer solves problems: step-by-step evolution or giant, unexplained dumps of code?
+
+### **Development Signals:**
+1. **Incrementalism**: Are changes staged in logical blocks, or are they "Save Points"?
+2. **Standardization**: Do they respect professional standards (Conventional Commits, explicit titles)?
+3. **Clarity**: Could another developer understand the PR just by reading the subject lines?
+
+### **Pattern Definitions:**
+- "CONVENTIONAL": Professional, spec-compliant.
+- "DESCRIPTIVE": Human-clear narrative.
+- "RANDOM": "fix", "updated", "asdf" - Low signal messages.
+- "MIXED": Inconsistency between different days or tasks.
 
 ### Commit Messages:
 {commitMessages}
 
----
-
-### Analysis Rules:
-1. **Quality Score**: 0-100 (high score for descriptive, clear, and consistent messages).
-2. **Pattern Detection**: Identify the predominant pattern:
-   - "CONVENTIONAL": Following Conventional Commits spec.
-   - "DESCRIPTIVE": Clear messages, even if not following a strict spec.
-   - "RANDOM": Messages like "fix", "update", "asdf", or very short/vague ones.
-   - "MIXED": A mix of different styles.
-3. **Summary**: A concise narrative of the findings.
-4. **Reasoning**: Detailed explanation of why you gave the score and pattern.
-
----
-
 ### Output JSON Format:
 {{
-  "qualityScore": <number 0-100>,
+  "qualityScore": 0-100, // High = Professional and descriptive
   "pattern": "CONVENTIONAL | DESCRIPTIVE | RANDOM | MIXED",
-  "summary": "<1-2 sentences overall assessment>",
-  "reasoning": "<explanation regarding clarity, consistency, and professional standards>"
+  "summary": "1-sentence narrative of the history",
 }}
 `);
 

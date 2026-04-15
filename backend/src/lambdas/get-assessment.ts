@@ -70,7 +70,6 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
           framework: assessment.runnability.testFramework,
           command: assessment.runnability.testCommand,
           path: assessment.runnability.testPath,
-          reason: assessment.runnability.testReason,
         } : { hasTests: false },
         
         testExecuted: assessment.testExecuted,

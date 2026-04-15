@@ -75,13 +75,10 @@ enum RequirementStatus {
 model ProjectRequirements {
   id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   assessmentId   String   @db.Uuid
-  requirementId  String   @map("requirement_id")
   text           String
   category       String?
-  suggestedFiles String[] @map("suggested_files")
 
   status          RequirementStatus @default(PENDING)
-  confidence      Float?
   evidenceFile    String?           @map("evidence_file")
   evidenceSnippet String?           @map("evidence_snippet")
   reasoning       String?
@@ -123,7 +120,6 @@ model Runnability {
   testFramework String?  @map("test_framework")
   testCommand   String?  @map("test_command")
   testPath      String?  @map("test_path")
-  testReason    String?  @map("test_reason")
 
   assessment Assessment @relation(fields: [assessmentId], references: [id], onDelete: Cascade)
 
@@ -135,9 +131,6 @@ model AiAnalysis {
   assessmentId         String  @unique @db.Uuid
   score                Float
   confidence           Float
-  uniformStyle         Boolean @map("uniform_style")
-  lowIterationEvidence Boolean @map("low_iteration_evidence")
-  genericPatterns      Boolean @map("generic_patterns")
   summary              String
   reasoning            String
 
@@ -152,7 +145,6 @@ model CommitAnalysis {
   qualityScore Float  @map("quality_score")
   pattern      String
   summary      String
-  reasoning    String
 
   assessment Assessment @relation(fields: [assessmentId], references: [id], onDelete: Cascade)
 
