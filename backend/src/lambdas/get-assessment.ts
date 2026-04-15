@@ -1,5 +1,6 @@
 import { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
-import { prisma } from '../db/prisma';
+import { AssessmentRepository } from '../repositories/assessment.repository';
+const assessmentRepo = new AssessmentRepository();
 
 export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> => {
   console.log(`processing get assessment`);
@@ -26,9 +27,7 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
 
   try {
     console.time('db');
-    const assessment = await prisma.assessment.findUnique({
-      where: { id },
-    });
+    const assessment = await assessmentRepo.getAssessmentById(id);
     console.timeEnd('db');
 
     if (!assessment) {
@@ -46,15 +45,33 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
         assessmentId: assessment.id,
         userId: assessment.userId,
         repoUrl: assessment.repoUrl,
-        requirementsText: assessment.requirementsText,
         status: assessment.status,
         score: assessment.score ?? 0,
         summary: assessment.summary ?? '',
-        aiUsageDetection: assessment.aiUsageDetection,
-        requirements: assessment.requirements || [],
-        requirementsEvaluation: assessment.requirementsEvaluation || [],
+        requirementsEvaluation: assessment.requirements || [],
+        
+        codeQuality: assessment.codeQuality,
+        runnability: assessment.runnability,
+        aiAnalysis: assessment.aiAnalysis,
+        commitAnalysis: assessment.commitAnalysis,
+        
+        requirementScore: assessment.requirementScore ?? 0,
+        codeQualityScore: assessment.codeQualityScore ?? 0,
+        runnabilityScore: assessment.runnabilityScore ?? 0,
+        aiAnalysisScore: assessment.aiAnalysisScore ?? 0,
+        
+        finalReport: assessment.finalReport,
         interviewQuestions: assessment.interviewQuestions || [],
-        testDetection: assessment.testDetection || { hasTests: false },
+        
+        // Re-mapping testDetection structure backwards-compatibly
+        testDetection: assessment.runnability ? {
+          hasTests: assessment.runnability.hasTests,
+          language: assessment.runnability.testLanguage,
+          framework: assessment.runnability.testFramework,
+          command: assessment.runnability.testCommand,
+          path: assessment.runnability.testPath,
+        } : { hasTests: false },
+        
         testExecuted: assessment.testExecuted,
         testResults: assessment.testResults,
         inputTokens: assessment.inputTokens,

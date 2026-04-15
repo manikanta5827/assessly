@@ -15,7 +15,7 @@ Parameters:
 # --- GLOBALS
 Globals:
   Function:
-    Runtime: nodejs22.x
+    Runtime: nodejs24.x
     Architectures:
       - arm64
     Environment:
@@ -29,7 +29,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       CodeUri: ./
-      Handler: src/lambdas/analyze-trigger.handler
+      Handler: src/lambdas/trigger-lambda.handler
       Policies:
         - AWSLambdaBasicExecutionRole
         - SQSSendMessagePolicy:
@@ -39,6 +39,7 @@ Resources:
           QUEUE_URL: !Ref ProcessQueue
           DATABASE_URL: !Sub '{{resolve:ssm:/assessly/${Stage}/DATABASE_URL}}'
       Timeout: 30
+      MemorySize: 256
       Events:
         AnalyzeApi:
           Type: Api
@@ -55,23 +56,26 @@ Resources:
           - '@aws-sdk/*'
         Sourcemap: true
         EntryPoints:
-          - src/lambdas/analyze-trigger.ts
+          - src/lambdas/trigger-lambda.ts
 
   #  Actual Processing Function
   ProcessFunction:
     Type: AWS::Serverless::Function
     Properties:
       CodeUri: ./
-      Handler: src/lambdas/analyze-process.handler
+      Handler: src/lambdas/process-lambda.handler
       Timeout: 300
       MemorySize: 512
       Policies:
         - AWSLambdaBasicExecutionRole
+        - S3CrudPolicy:
+            BucketName: !Ref AssesslyStorageBucket
       Environment:
         Variables:
           DATABASE_URL: !Sub '{{resolve:ssm:/assessly/${Stage}/DATABASE_URL}}'
           GITHUB_TOKEN: !Sub '{{resolve:ssm:/assessly/${Stage}/GITHUB_TOKEN}}'
           OPENAI_API_KEY: !Sub '{{resolve:ssm:/assessly/${Stage}/OPENAI_API_KEY}}'
+          STORAGE_BUCKET_NAME: !Ref AssesslyStorageBucket
       Events:
         ProcessQueueEvent:
           Type: SQS
@@ -87,7 +91,7 @@ Resources:
           - '@aws-sdk/*'
         Sourcemap: true
         EntryPoints:
-          - src/lambdas/analyze-process.ts
+          - src/lambdas/process-lambda.ts
 
   # Get Assessment Function
   GetAssessmentFunction:
@@ -96,11 +100,13 @@ Resources:
       CodeUri: ./
       Handler: src/lambdas/get-assessment.handler
       Timeout: 30
+      MemorySize: 256
       Policies:
         - AWSLambdaBasicExecutionRole
       Environment:
         Variables:
           DATABASE_URL: !Sub '{{resolve:ssm:/assessly/${Stage}/DATABASE_URL}}'
+          STORAGE_BUCKET_NAME: !Ref AssesslyStorageBucket
       Events:
         GetAssessmentApi:
           Type: Api
@@ -144,6 +150,23 @@ Resources:
       LogGroupName: !Sub '/aws/lambda/${GetAssessmentFunction}'
       RetentionInDays: 3
 
+  # --- S3 BUCKET
+  AssesslyStorageBucket:
+    Type: AWS::S3::Bucket
+    UpdateReplacePolicy: Retain
+    DeletionPolicy: Retain
+    Properties:
+      BucketName: !Sub '${Stage}-assessly-storage-${AWS::AccountId}'
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+
   # --- SQS QUEUE
   ProcessDLQ:
     Type: AWS::SQS::Queue
@@ -165,6 +188,7 @@ Resources:
     Type: AWS::Serverless::Api
     Properties:
       StageName: !Ref Stage
+      MinimumCompressionSize: 1024
       Cors:
         AllowOrigin: "'*'"
         AllowHeaders: "'Content-Type,Authorization'"

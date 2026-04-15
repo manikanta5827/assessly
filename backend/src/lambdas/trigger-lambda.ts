@@ -1,9 +1,12 @@
 import { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
 import { SQSClient, SendMessageCommand } from '@aws-sdk/client-sqs';
-import { prisma } from '../db/prisma';
+import { AssessmentRepository } from '../repositories/assessment.repository';
+import { IpTrackingRepository } from '../repositories/ip-tracking.repository';
 import * as crypto from 'node:crypto';
 
 const sqsClient = new SQSClient({});
+const assessmentRepo = new AssessmentRepository();
+const ipTrackingRepo = new IpTrackingRepository();
 
 export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> => {
   const headers = {
@@ -33,6 +36,21 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
 
     const ip = event.requestContext.identity.sourceIp || 'unknown';
 
+    // 1. Check if assessment for this repo already exists
+    const existingAssessment = await assessmentRepo.getAssessmentByRepoUrl(repoUrl);
+    if (existingAssessment) {
+      console.log('Assessment already exists for repoUrl: ', repoUrl);
+      return {
+        statusCode: 409,
+        headers,
+        body: JSON.stringify({
+          error: 'Already exists',
+          message: 'An assessment for this repository already exists.',
+          assessmentId: existingAssessment.id,
+        }),
+      };
+    }
+
     console.log('IP for user: ', userId, ' is ', ip);
     const ipHash = crypto.createHash('sha256').update(ip).digest('hex');
 
@@ -40,9 +58,7 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
     if (!userId) {
       console.log('Checking IP limits for guest user with ip: ', ip);
       try {
-        const tracking = await prisma.ipTracking.findUnique({
-          where: { ipHash },
-        });
+        const tracking = await ipTrackingRepo.getIpTrackingByHash(ipHash);
         console.log('Tracking for ip: ', ip, ' is ', tracking?.assessmentCount);
 
         if (tracking && tracking.assessmentCount >= 1) {
@@ -65,14 +81,12 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
 
     // 2. Create Assessment record (PENDING)
     console.log('Creating assessment for ip: ', ip);
-    const assessment = await prisma.assessment.create({
-      data: {
-        userId: userId || null,
-        ipHash,
-        repoUrl,
-        requirementsText,
-        status: 'PENDING',
-      },
+    const assessment = await assessmentRepo.createAssessment({
+      userId: userId || null,
+      ipHash,
+      repoUrl,
+      requirementsText,
+      status: 'PENDING',
     });
 
     // 3. Send message to SQS queue
@@ -100,11 +114,7 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
     // 4. Update IP Tracking for guests
     if (!userId) {
       console.log('Updating IP Tracking for guest user with ip: ', ip);
-      await prisma.ipTracking.upsert({
-        where: { ipHash },
-        update: { assessmentCount: { increment: 1 }, lastSeenAt: new Date() },
-        create: { ipHash, assessmentCount: 1 },
-      });
+      await ipTrackingRepo.incrementIpAssessmentCount(ipHash);
     }
 
     return {

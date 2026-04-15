@@ -89,6 +89,33 @@ export class GitHubService {
     }
   }
 
+  async getCommits(owner: string, repo: string): Promise<string[]> {
+    const url = `https://api.github.com/repos/${owner}/${repo}/commits?per_page=100`;
+    console.log(`[GitHubService] Fetching commits: ${url}`);
+
+    try {
+      const response = await fetch(url, {
+        headers: {
+          Authorization: `token ${this.token}`,
+          'User-Agent': 'Assessly-Backend',
+          Accept: 'application/vnd.github+json',
+        },
+      });
+
+      if (!response.ok) {
+        const msg = await response.text();
+        console.error(`[GitHubService] Commit fetch failed [${response.status}]: ${msg}`);
+        return [];
+      }
+
+      const commits = (await response.json()) as any[];
+      return commits.map((c) => c.commit.message);
+    } catch (error) {
+      console.error('[GitHubService] Error fetching commits:', error);
+      return [];
+    }
+  }
+
   private isSourceFile(filePath: string): boolean {
     return (
       /\.(ts|tsx|js|jsx|py|go|rs|java|c|cpp|h|css|html|md|yaml|yml|toml)$/i.test(filePath) &&

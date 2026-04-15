@@ -43,9 +43,9 @@ jobs:
       - name: Setup SAM CLI
         uses: aws-actions/setup-sam@v2
 
-      - name: Run Prisma Migrations
+      - name: Run Drizzle Migrations
         run: |
-          npm run prisma:migrate:deploy
+          npm run db:migrate
 
       - name: Build SAM
         run: sam build --parallel
