@@ -1,5 +1,4 @@
 import { ChatOpenAI } from '@langchain/openai';
-import { ChatAnthropic } from '@langchain/anthropic';
 import { PromptTemplate } from '@langchain/core/prompts';
 import { BaseMessage } from '@langchain/core/messages';
 
@@ -14,7 +13,7 @@ export interface LLMUsageStats {
 }
 
 export class LLMService {
-  private readonly model: ChatOpenAI | ChatAnthropic;
+  private readonly model: ChatOpenAI;
   private readonly provider: LLMProvider;
   private readonly modelName: string;
 
@@ -23,30 +22,16 @@ export class LLMService {
       'gpt-4o': { input: 2.5, output: 10.0 }, // per 1M tokens
       'gpt-4o-mini': { input: 0.15, output: 0.6 },
     },
-    anthropic: {
-      'claude-3-5-sonnet-latest': { input: 3.0, output: 15.0 },
-      'claude-3-5-sonnet-20241022': { input: 3.0, output: 15.0 },
-      'claude-3-haiku-20240307': { input: 0.25, output: 1.25 },
-    },
   };
 
   constructor(provider: LLMProvider = 'openai', apiKey: string, modelName?: string) {
     this.provider = provider;
-    if (provider === 'openai') {
-      this.modelName = modelName || 'gpt-4o';
-      this.model = new ChatOpenAI({
-        openAIApiKey: apiKey,
-        modelName: this.modelName,
-        temperature: 0,
-      });
-    } else {
-      this.modelName = modelName || 'claude-3-5-sonnet-latest';
-      this.model = new ChatAnthropic({
-        anthropicApiKey: apiKey,
-        modelName: this.modelName,
-        temperature: 0,
-      });
-    }
+    this.modelName = modelName || 'gpt-4o';
+    this.model = new ChatOpenAI({
+      openAIApiKey: apiKey,
+      modelName: this.modelName,
+      temperature: 0,
+    });
   }
 
   async extractRequirements(
@@ -175,7 +160,8 @@ Perform a deep-dive analysis of the codebase's health, focusing on long-term mai
     const response = (await chain.invoke({ repoSnapshot })) as BaseMessage;
     const usage = this.calculateUsage(response, 'analyzeCodeQuality');
 
-    const content = typeof response.content === 'string' ? response.content : JSON.stringify(response.content);
+    const content =
+      typeof response.content === 'string' ? response.content : JSON.stringify(response.content);
     const jsonStr = content.match(/\{[\s\S]*\}/)?.[0] || content;
 
     return { analysis: JSON.parse(jsonStr), usage };
@@ -226,7 +212,8 @@ Evaluate the codebase for "Production Readiness" and "Ease of Deployment."
     const response = (await chain.invoke({ repoSnapshot })) as BaseMessage;
     const usage = this.calculateUsage(response, 'analyzeRunnability');
 
-    const content = typeof response.content === 'string' ? response.content : JSON.stringify(response.content);
+    const content =
+      typeof response.content === 'string' ? response.content : JSON.stringify(response.content);
     const jsonStr = content.match(/\{[\s\S]*\}/)?.[0] || content;
 
     return { analysis: JSON.parse(jsonStr), usage };
@@ -268,7 +255,8 @@ Your goal is to determine the probability that the provided code was generated b
     const response = (await chain.invoke({ repoSnapshot })) as BaseMessage;
     const usage = this.calculateUsage(response, 'analyzeAIPatterns');
 
-    const content = typeof response.content === 'string' ? response.content : JSON.stringify(response.content);
+    const content =
+      typeof response.content === 'string' ? response.content : JSON.stringify(response.content);
     const jsonStr = content.match(/\{[\s\S]*\}/)?.[0] || content;
 
     return { analysis: JSON.parse(jsonStr), usage };
@@ -308,30 +296,27 @@ Do NOT be lenient. If a feature is present but missing a critical edge case defi
 ]
 `);
 
-    const requirementsList = requirements
-      .map((r) => `- [${r.id}] ${r.text}`)
-      .join('\n');
+    const requirementsList = requirements.map((r) => `- [${r.id}] ${r.text}`).join('\n');
 
     const chain = prompt.pipe(this.model);
     const response = (await chain.invoke({ repoSnapshot, requirementsList })) as BaseMessage;
     const usage = this.calculateUsage(response, 'evaluateRequirements');
 
-    const content = typeof response.content === 'string' ? response.content : JSON.stringify(response.content);
+    const content =
+      typeof response.content === 'string' ? response.content : JSON.stringify(response.content);
     const jsonStr = content.match(/\[[\s\S]*\]/)?.[0] || content;
 
     return { evaluation: JSON.parse(jsonStr), usage };
   }
 
-  async generateFinalReport(
-    inputs: {
-      requirementsEvaluation: any[];
-      codeQuality: any;
-      runnability: any;
-      commitAnalysis: any;
-      aiAnalysis: any;
-      score: number;
-    }
-  ): Promise<{ report: any; usage: LLMUsageStats | null }> {
+  async generateFinalReport(inputs: {
+    requirementsEvaluation: any[];
+    codeQuality: any;
+    runnability: any;
+    commitAnalysis: any;
+    aiAnalysis: any;
+    score: number;
+  }): Promise<{ report: any; usage: LLMUsageStats | null }> {
     console.log(`[LLMService] Starting generateFinalReport...`);
     const prompt = PromptTemplate.fromTemplate(`
 You are a Chief Technology Officer (CTO). You are performing the final review of a candidate's technical assessment.
@@ -380,7 +365,8 @@ AI Forensic Scan: {aiAnalysis}
     })) as BaseMessage;
     const usage = this.calculateUsage(response, 'generateFinalReport');
 
-    const content = typeof response.content === 'string' ? response.content : JSON.stringify(response.content);
+    const content =
+      typeof response.content === 'string' ? response.content : JSON.stringify(response.content);
     const jsonStr = content.match(/\{[\s\S]*\}/)?.[0] || content;
 
     return { report: JSON.parse(jsonStr), usage };
@@ -394,11 +380,11 @@ AI Forensic Scan: {aiAnalysis}
       return {
         analysis: {
           qualityScore: 0,
-          summary: "No commits found to analyze.",
-          pattern: "NONE",
-          reasoning: "The repository has no commits or they could not be fetched."
+          summary: 'No commits found to analyze.',
+          pattern: 'NONE',
+          reasoning: 'The repository has no commits or they could not be fetched.',
         },
-        usage: null
+        usage: null,
       };
     }
 
@@ -458,8 +444,7 @@ Determine how the developer solves problems: step-by-step evolution or giant, un
     }
 
     // Input and Output tokens extraction
-    const inputTokens =
-      usage.input_tokens || usage.prompt_tokens || usage.promptTokens || 0;
+    const inputTokens = usage.input_tokens || usage.prompt_tokens || usage.promptTokens || 0;
     const outputTokens =
       usage.output_tokens || usage.completion_tokens || usage.completionTokens || 0;
 
@@ -476,17 +461,14 @@ Determine how the developer solves problems: step-by-step evolution or giant, un
 
     // Get pricing
     const providerPricing = (this.PRICING as any)[this.provider];
-    const modelPricing =
-      providerPricing?.[this.modelName] || { input: 0, output: 0 };
+    const modelPricing = providerPricing?.[this.modelName] || { input: 0, output: 0 };
 
     const inputCost = (inputTokens / 1_000_000) * modelPricing.input;
     const outputCost = (outputTokens / 1_000_000) * modelPricing.output;
     const totalCost = inputCost + outputCost;
 
     console.log('--------------------------------------------------');
-    console.log(
-      `[${service}] Usage - Provider: ${this.provider}, Model: ${this.modelName}`
-    );
+    console.log(`[${service}] Usage - Provider: ${this.provider}, Model: ${this.modelName}`);
     console.log(`[${service}] Input Tokens:  ${inputTokens}`);
     if (cachedTokens > 0) {
       console.log(

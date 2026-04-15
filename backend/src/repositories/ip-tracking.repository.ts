@@ -1,17 +1,28 @@
-import { prisma } from '../db/prisma';
+import { db } from '../db/index';
+import { ipTracking } from '../db/schema';
+import { eq, sql } from 'drizzle-orm';
 
 export class IpTrackingRepository {
   async getIpTrackingByHash(ipHash: string) {
-    return prisma.ipTracking.findUnique({
-      where: { ipHash },
+    return await db.query.ipTracking.findFirst({
+      where: eq(ipTracking.ipHash, ipHash),
     });
   }
 
   async incrementIpAssessmentCount(ipHash: string) {
-    return prisma.ipTracking.upsert({
-      where: { ipHash },
-      update: { assessmentCount: { increment: 1 }, lastSeenAt: new Date() },
-      create: { ipHash, assessmentCount: 1 },
-    });
+    return await db
+      .insert(ipTracking)
+      .values({
+        ipHash,
+        assessmentCount: 1,
+        lastSeenAt: new Date(),
+      })
+      .onConflictDoUpdate({
+        target: ipTracking.ipHash,
+        set: {
+          assessmentCount: sql`${ipTracking.assessmentCount} + 1`,
+          lastSeenAt: new Date(),
+        },
+      });
   }
 }

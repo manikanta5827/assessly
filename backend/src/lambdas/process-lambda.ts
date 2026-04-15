@@ -1,5 +1,4 @@
 import { SQSEvent } from 'aws-lambda';
-import { Prisma } from '@prisma/client';
 import { AssessmentRepository } from '../repositories/assessment.repository';
 import { GitHubService } from '../services/github.service';
 import { LLMService } from '../services/llm.service';
@@ -119,7 +118,7 @@ export const handler = async (event: SQSEvent) => {
         s3Service.putObject(assessmentId, 'repo-map.json', repoMapResult.repoMap || null, 'application/json'),
       ]);
 
-      await assessmentRepo.updateAssessment(assessmentId, {
+      await assessmentRepo.finalizeAssessment(assessmentId, {
         status: 'COMPLETED',
         score: Math.round(finalScore),
 
@@ -127,7 +126,7 @@ export const handler = async (event: SQSEvent) => {
         inputTokens: totalUsage.inputTokens,
         outputTokens: totalUsage.outputTokens,
         totalTokens: totalUsage.totalTokens,
-        estimatedCost: new Prisma.Decimal(totalUsage.estimatedCost),
+        estimatedCost: totalUsage.estimatedCost.toFixed(6),
 
         summary: finalReportResult.report.summary || '',
         requirementScore,
@@ -135,7 +134,7 @@ export const handler = async (event: SQSEvent) => {
         runnabilityScore,
         aiAnalysisScore: aiPatternsResult.analysis.score,
 
-        // Relational Nested Creates
+        // Relational Nested Creates (Handled via transaction in finalizeAssessment)
         requirements: {
           create: reqResult.requirements.map((req: any) => {
             const evalMatch = requirementsEval.find((e: any) => e.id === req.id);
