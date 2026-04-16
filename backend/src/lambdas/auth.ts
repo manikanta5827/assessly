@@ -32,7 +32,7 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
 
       // 2. If signup and user doesn't exist, create user
       if (path.includes('/auth/signup') && !user) {
-        user = await userRepository.createUser({ email, name });
+        await userRepository.createUser({ email, name });
         console.log('Created new user during signup:', email);
       } else if (path.includes('/auth/signup') && user) {
         return response(200, { message: 'User already exists. Please verify your email via the link sent to your inbox.' });

@@ -19,8 +19,6 @@ export class AuthService {
     return crypto.randomBytes(32).toString('hex');
   }
 
-  // --- Stateless Magic Link Logic ---
-
   generateMagicLinkHash(email: string, ts: number): string {
     const data = `${email.toLowerCase()}:${ts}`;
     return crypto.createHmac('sha256', this.hashSecret).update(data).digest('hex');
@@ -46,8 +44,6 @@ export class AuthService {
 
     return true;
   }
-
-  // --- JWT Logic ---
 
   generateJWT(payload: JWTPayload): string {
     return jwt.sign(payload, this.jwtSecret, { expiresIn: '7d' });
