@@ -12,10 +12,9 @@ export class S3Service {
     }
   }
 
-  async putObject(assessmentId: string, fileName: string, content: any, contentType: string = 'text/plain'): Promise<string> {
-    const key = `assessments/${assessmentId}/${fileName}`;
+  async putObject(key: string, content: any, contentType: string = 'text/plain'): Promise<string> {
     console.log(`[S3Service] Uploading to ${key}...`);
-    
+
     const body = typeof content === 'string' ? content : JSON.stringify(content, null, 2);
     const maxRetries = 3;
     let attempt = 0;
@@ -35,19 +34,20 @@ export class S3Service {
         attempt++;
         console.error(`[S3Service] Attempt ${attempt} failed for ${key}:`, error);
         if (attempt >= maxRetries) {
-          throw new Error(`Failed to upload to S3 after ${maxRetries} attempts: ${error instanceof Error ? error.message : 'Unknown error'}`);
+          throw new Error(
+            `Failed to upload to S3 after ${maxRetries} attempts: ${error instanceof Error ? error.message : 'Unknown error'}`
+          );
         }
         // Wait before retrying (exponential backoff: 500ms, 1000ms, etc.)
-        const delay = Math.pow(2, attempt) * 250; 
-        await new Promise(resolve => setTimeout(resolve, delay));
+        const delay = Math.pow(2, attempt) * 250;
+        await new Promise((resolve) => setTimeout(resolve, delay));
       }
     }
-    
+
     throw new Error(`Unexpected failure in putObject for ${key}`);
   }
 
-  async getObject(assessmentId: string, fileName: string): Promise<string | null> {
-    const key = `assessments/${assessmentId}/${fileName}`;
+  async getObject(key: string): Promise<string | null> {
     try {
       const response = await this.client.send(
         new GetObjectCommand({
@@ -55,7 +55,7 @@ export class S3Service {
           Key: key,
         })
       );
-      return await response.Body?.transformToString() || null;
+      return (await response.Body?.transformToString()) || null;
     } catch (error) {
       console.error(`[S3Service] Error fetching object ${key}:`, error);
       return null;
