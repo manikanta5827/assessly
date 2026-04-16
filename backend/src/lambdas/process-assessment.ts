@@ -212,6 +212,7 @@ export const handler = async (event: SQSEvent) => {
         },
       });
 
+      await assessmentRepo.updateAssessmentStatus(assessmentId, 'COMPLETED');
       console.log(`Assessment ${assessmentId} COMPLETED`);
     } catch (error: unknown) {
       console.error(`Processing Error for Assessment ${assessmentId}:`, error);
