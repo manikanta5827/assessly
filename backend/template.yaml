@@ -1,6 +1,15 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Transform: AWS::Serverless-2016-10-31
 Description: Assessly - AI GitHub Assessment Reviewer
+ 
+# --- MAPPINGS
+Mappings:
+  StageConfig:
+    dev:
+      LogRetention: 3
+    prod:
+      LogRetention: 7
+
 
 # --- PARAMETERS
 Parameters:
@@ -207,7 +216,7 @@ Resources:
     UpdateReplacePolicy: Delete
     Properties:
       LogGroupName: !Sub '/aws/lambda/${TriggerFunction}'
-      RetentionInDays: 3
+      RetentionInDays: !FindInMap [StageConfig, !Ref Stage, LogRetention]
 
   LogGroup2:
     Type: AWS::Logs::LogGroup
@@ -215,7 +224,7 @@ Resources:
     UpdateReplacePolicy: Delete
     Properties:
       LogGroupName: !Sub '/aws/lambda/${ProcessFunction}'
-      RetentionInDays: 3
+      RetentionInDays: !FindInMap [StageConfig, !Ref Stage, LogRetention]
 
   LogGroup3:
     Type: AWS::Logs::LogGroup
@@ -223,7 +232,7 @@ Resources:
     UpdateReplacePolicy: Delete
     Properties:
       LogGroupName: !Sub '/aws/lambda/${GetAssessmentFunction}'
-      RetentionInDays: 3
+      RetentionInDays: !FindInMap [StageConfig, !Ref Stage, LogRetention]
 
   LogGroup4:
     Type: AWS::Logs::LogGroup
@@ -231,7 +240,7 @@ Resources:
     UpdateReplacePolicy: Delete
     Properties:
       LogGroupName: !Sub '/aws/lambda/${AuthFunction}'
-      RetentionInDays: 3
+      RetentionInDays: !FindInMap [StageConfig, !Ref Stage, LogRetention]
   
   LogGroup5:
     Type: AWS::Logs::LogGroup
@@ -239,7 +248,7 @@ Resources:
     UpdateReplacePolicy: Delete
     Properties:
       LogGroupName: !Sub '/aws/lambda/${AuthTokenVerifierLambda}'
-      RetentionInDays: 3
+      RetentionInDays: !FindInMap [StageConfig, !Ref Stage, LogRetention]
 
   # --- S3 BUCKET
   AssesslyStorageBucket:
