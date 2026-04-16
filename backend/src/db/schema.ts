@@ -112,6 +112,7 @@ export const emailCandidates = pgTable(
     id: uuid('id')
       .primaryKey()
       .default(sql`gen_random_uuid()`),
+    inviteToken: text('invite_token').notNull(),
     email: text('email'),
     channelId: uuid('channel_id')
       .notNull()

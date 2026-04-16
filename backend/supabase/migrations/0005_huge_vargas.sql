@@ -1,0 +1,1 @@
+ALTER TABLE "email_candidates" ADD COLUMN "invite_token" text NOT NULL;

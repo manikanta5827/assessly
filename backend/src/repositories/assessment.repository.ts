@@ -14,12 +14,6 @@ import { eq } from 'drizzle-orm';
 export type AssessmentStatus = 'PENDING' | 'PROCESSING' | 'COMPLETED' | 'FAILED';
 
 export class AssessmentRepository {
-  async getAssessmentByRepoUrl(repoUrl: string) {
-    return await db.query.assessments.findFirst({
-      where: eq(assessments.repoUrl, repoUrl),
-    });
-  }
-
   async getAssessmentById(id: string) {
     return await db.query.assessments.findFirst({
       where: eq(assessments.id, id),
@@ -70,16 +64,6 @@ export class AssessmentRepository {
   async createAssessment(data: any | any[]) {
     const result = await db.insert(assessments).values(data).returning();
     return Array.isArray(data) ? result : result[0];
-  }
-
-
-  async updateAssessment(id: string, data: any) {
-    const result = await db
-      .update(assessments)
-      .set({ ...data, updatedAt: new Date() })
-      .where(eq(assessments.id, id))
-      .returning();
-    return result[0];
   }
 
   async finalizeAssessment(id: string, data: any) {
