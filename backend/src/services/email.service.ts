@@ -33,4 +33,8 @@ export class EmailService {
   async sendMagicLink(email: string, link: string) {
     await this.sendEmail(email, 'sign-in-email', { link: link });
   }
+
+  async sendAssessmentEmail(email: string, submissionLink: string, assessmentDocsLink: string) {
+    await this.sendEmail(email, 'assessment-email', { submissionLink: submissionLink, assessmentDocsLink: assessmentDocsLink });
+  }
 }
