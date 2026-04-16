@@ -42,6 +42,10 @@ export const handler = async (event: SQSEvent) => {
       // 5. AI Analysis - Multi-stage Pipeline
       console.log(`Starting Multi-stage AI Analysis for assessmentId: ${assessmentId}...`);
 
+      // get requirements text from s3
+      const requirementDocsUrl = await assessmentRepo.getAssessmentDocsUrl(assessmentId);
+      const requirementsText = await s3Service.getObject(requirementDocsUrl!);
+
       // STAGE 1: Parallel Analysis Calls
       const [
         reqResult,
@@ -51,7 +55,7 @@ export const handler = async (event: SQSEvent) => {
         runnabilityResult,
         aiPatternsResult,
       ] = await Promise.all([
-        llm.extractRequirements(assessment.requirementsText),
+        llm.extractRequirements(requirementsText!),
         llm.generateRepoMap(fileNames, context),
         llm.analyzeCommits(commitMessages),
         llm.analyzeCodeQuality(context),
@@ -113,9 +117,11 @@ export const handler = async (event: SQSEvent) => {
       console.log('Analysis Done for assessmentId: ', assessmentId);
 
       // 6. Store Large Contexts in S3
+      const snapshotKey = `assessmentSnapshots/${assessmentId}/snapshot.txt`;
+      const repoMapKey = `assessmentRepoMaps/${assessmentId}/repo-map.json`;
       await Promise.all([
-        s3Service.putObject(assessmentId, 'snapshot.txt', context, 'text/plain'),
-        s3Service.putObject(assessmentId, 'repo-map.json', repoMapResult.repoMap || null, 'application/json'),
+        s3Service.putObject(snapshotKey, context, 'text/plain'),
+        s3Service.putObject(repoMapKey, repoMapResult.repoMap || null, 'application/json'),
       ]);
 
       await assessmentRepo.finalizeAssessment(assessmentId, {

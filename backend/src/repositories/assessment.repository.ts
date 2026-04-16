@@ -41,10 +41,24 @@ export class AssessmentRepository {
       columns: {
         id: true,
         repoUrl: true,
-        requirementsText: true,
       },
     });
   }
+
+  async getAssessmentDocsUrl(assessmentId: string) {
+    const result = await db.query.assessments.findFirst({
+      where: eq(assessments.id, assessmentId),
+      with: {
+        channel: {
+          columns: {
+            assessmentDocsUrl: true,
+          },
+        },
+      },
+    });
+    return result?.channel?.assessmentDocsUrl;
+  }
+
 
   async updateAssessmentStatus(id: string, status: AssessmentStatus) {
     return await db
@@ -53,10 +67,11 @@ export class AssessmentRepository {
       .where(eq(assessments.id, id));
   }
 
-  async createAssessment(data: any) {
+  async createAssessment(data: any | any[]) {
     const result = await db.insert(assessments).values(data).returning();
-    return result[0];
+    return Array.isArray(data) ? result : result[0];
   }
+
 
   async updateAssessment(id: string, data: any) {
     const result = await db

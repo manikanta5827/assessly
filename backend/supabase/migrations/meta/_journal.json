@@ -22,6 +22,20 @@
       "when": 1776344020189,
       "tag": "0002_gifted_chat",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1776359724059,
+      "tag": "0003_sturdy_maximus",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1776364140684,
+      "tag": "0004_hard_sugar_man",
+      "breakpoints": true
     }
   ]
 }

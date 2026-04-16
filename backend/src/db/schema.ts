@@ -49,70 +49,107 @@ export const users = pgTable('users', {
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
 });
 
+export const channels = pgTable(
+  'channels',
+  {
+    id: uuid('id')
+      .primaryKey()
+      .default(sql`gen_random_uuid()`),
+    name: text('name').notNull().unique(),
+    description: text('description'),
+    assessmentDocsUrl: text('assessment_docs_url').notNull(),
+    createdBy: uuid('created_by')
+      .notNull()
+      .references(() => users.id),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => {
+    return [index('channels_created_by_idx').on(table.createdBy)];
+  }
+);
 
-export const assessments = pgTable('assessments', {
-  id: uuid('id')
-    .primaryKey()
-    .default(sql`gen_random_uuid()`),
-  userId: uuid('user_id').references(() => users.id),
-  ipHash: text('ip_hash').notNull(),
-  repoUrl: text('repo_url').notNull(),
-  requirementsText: text('requirements_text').notNull(),
-  status: assessmentStatusEnum('status').default('PENDING').notNull(),
-  score: integer('score'),
-  summary: text('summary'),
-  requirementScore: doublePrecision('requirement_score'),
-  codeQualityScore: doublePrecision('code_quality_score'),
-  runnabilityScore: doublePrecision('runnability_score'),
-  aiAnalysisScore: doublePrecision('ai_analysis_score'),
-  testExecuted: boolean('test_executed').default(false).notNull(),
-  testResults: jsonb('test_results'),
-  inputTokens: integer('input_tokens'),
-  outputTokens: integer('output_tokens'),
-  totalTokens: integer('total_tokens'),
-  estimatedCost: numeric('estimated_cost', { precision: 10, scale: 6 }),
-  
-  // Candidate Info
-  channelId: uuid('channel_id').references(() => channels.id),
-  candidateName: text('candidate_name'),
-  candidateEmail: text('candidate_email'),
-  inviteToken: text('invite_token').unique(),
-  candidateStatus: candidateStatusEnum('candidate_status').default('INVITED').notNull(),
-  invitedAt: timestamp('invited_at', { withTimezone: true }),
-  viewedAt: timestamp('viewed_at', { withTimezone: true }),
-  submittedAt: timestamp('submitted_at', { withTimezone: true }),
+export const assessments = pgTable(
+  'assessments',
+  {
+    id: uuid('id')
+      .primaryKey()
+      .default(sql`gen_random_uuid()`),
+    repoUrl: text('repo_url').notNull(),
+    channelId: uuid('channel_id')
+      .notNull()
+      .references(() => channels.id),
+    status: assessmentStatusEnum('status').default('PENDING').notNull(),
+    score: integer('score'),
+    summary: text('summary'),
+    requirementScore: doublePrecision('requirement_score'),
+    codeQualityScore: doublePrecision('code_quality_score'),
+    runnabilityScore: doublePrecision('runnability_score'),
+    aiAnalysisScore: doublePrecision('ai_analysis_score'),
+    testExecuted: boolean('test_executed').default(false).notNull(),
+    testResults: jsonb('test_results'),
+    inputTokens: integer('input_tokens'),
+    outputTokens: integer('output_tokens'),
+    totalTokens: integer('total_tokens'),
+    estimatedCost: numeric('estimated_cost', { precision: 10, scale: 6 }),
 
-  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
-  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
-}, (table) => {
-  return [
-    index('repo_url_idx').on(table.repoUrl),
-    index('user_id_idx').on(table.userId),
-    index('ip_hash_idx').on(table.ipHash),
-    index('status_idx').on(table.status),
-    index('channel_id_idx').on(table.channelId),
-    index('invite_token_idx').on(table.inviteToken),
-  ];
-});
+    candidateName: text('candidate_name'),
+
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => {
+    return [
+      index('repo_url_idx').on(table.repoUrl),
+      index('status_idx').on(table.status),
+      index('channel_id_idx').on(table.channelId),
+    ];
+  }
+);
+
+export const emailCandidates = pgTable(
+  'email_candidates',
+  {
+    id: uuid('id')
+      .primaryKey()
+      .default(sql`gen_random_uuid()`),
+    email: text('email'),
+    channelId: uuid('channel_id')
+      .notNull()
+      .references(() => channels.id),
+    assessmentId: uuid('assessment_id')
+      .notNull()
+      .references(() => assessments.id),
+    status: candidateStatusEnum('status').default('INVITED').notNull(),
+    invitedAt: timestamp('invited_at', { withTimezone: true }),
+    viewedAt: timestamp('viewed_at', { withTimezone: true }),
+    submittedAt: timestamp('submitted_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => {
+    return [
+      index('candidate_channel_id_idx').on(table.channelId),
+    ];
+  });
 
 export const projectRequirements = pgTable('project_requirements', {
-  id: uuid('id')
-    .primaryKey()
-    .default(sql`gen_random_uuid()`),
-  assessmentId: uuid('assessment_id')
-    .notNull()
-    .references(() => assessments.id, { onDelete: 'cascade' }),
-  text: text('text').notNull(),
-  category: text('category'),
-  status: requirementStatusEnum('status').default('PENDING').notNull(),
-  evidenceFile: text('evidence_file'),
-  evidenceSnippet: text('evidence_snippet'),
-  reasoning: text('reasoning'),
-}, (table) => {
-  return [
-    index('pr_assessment_id_idx').on(table.assessmentId),
-  ];
-});
+    id: uuid('id')
+      .primaryKey()
+      .default(sql`gen_random_uuid()`),
+    assessmentId: uuid('assessment_id')
+      .notNull()
+      .references(() => assessments.id, { onDelete: 'cascade' }),
+    text: text('text').notNull(),
+    category: text('category'),
+    status: requirementStatusEnum('status').default('PENDING').notNull(),
+    evidenceFile: text('evidence_file'),
+    evidenceSnippet: text('evidence_snippet'),
+    reasoning: text('reasoning'),
+  }, (table) => {
+    return [
+      index('pr_assessment_id_idx').on(table.assessmentId),
+    ];
+  });
 
 export const codeQuality = pgTable('code_quality', {
   id: uuid('id')
@@ -195,37 +232,19 @@ export const finalReport = pgTable('final_report', {
 });
 
 export const interviewQuestions = pgTable('interview_questions', {
-  id: uuid('id')
-    .primaryKey()
-    .default(sql`gen_random_uuid()`),
-  assessmentId: uuid('assessment_id')
-    .notNull()
-    .references(() => assessments.id, { onDelete: 'cascade' }),
-  question: text('question').notNull(),
-  focusArea: text('focus_area').notNull(),
-}, (table) => {
-  return [
-    index('iq_assessment_id_idx').on(table.assessmentId),
-  ];
-});
-
-export const channels = pgTable('channels', {
-  id: uuid('id')
-    .primaryKey()
-    .default(sql`gen_random_uuid()`),
-  name: text('name').notNull().unique(),
-  description: text('description'),
-  assessmentDocsUrl: text('assessment_docs_url').notNull(),
-  createdBy: uuid('created_by')
-    .notNull()
-    .references(() => users.id),
-  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
-}, (table) => {
-  return [
-    index('channels_created_by_idx').on(table.createdBy),
-  ];
-});
-
+    id: uuid('id')
+      .primaryKey()
+      .default(sql`gen_random_uuid()`),
+    assessmentId: uuid('assessment_id')
+      .notNull()
+      .references(() => assessments.id, { onDelete: 'cascade' }),
+    question: text('question').notNull(),
+    focusArea: text('focus_area').notNull(),
+  }, (table) => {
+    return [
+      index('iq_assessment_id_idx').on(table.assessmentId),
+    ];
+  });
 
 // --- Relations ---
 
@@ -252,13 +271,24 @@ export const assessmentsRelations = relations(assessments, ({ many, one }) => ({
     references: [finalReport.assessmentId],
   }),
   interviewQuestions: many(interviewQuestions),
-  user: one(users, {
-    fields: [assessments.userId],
-    references: [users.id],
+  candidate: one(emailCandidates, {
+    fields: [assessments.id],
+    references: [emailCandidates.assessmentId],
   }),
   channel: one(channels, {
     fields: [assessments.channelId],
     references: [channels.id],
+  }),
+}));
+
+export const emailCandidatesRelations = relations(emailCandidates, ({ one }) => ({
+  channel: one(channels, {
+    fields: [emailCandidates.channelId],
+    references: [channels.id],
+  }),
+  assessment: one(assessments, {
+    fields: [emailCandidates.assessmentId],
+    references: [assessments.id],
   }),
 }));
 
@@ -272,6 +302,7 @@ export const channelsRelations = relations(channels, ({ one, many }) => ({
     fields: [channels.createdBy],
     references: [users.id],
   }),
+  emailCandidates: many(emailCandidates),
   assessments: many(assessments),
 }));
 
