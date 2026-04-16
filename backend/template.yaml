@@ -106,7 +106,6 @@ Resources:
       Environment:
         Variables:
           DATABASE_URL: !Sub '{{resolve:ssm:/assessly/${Stage}/DATABASE_URL}}'
-          STORAGE_BUCKET_NAME: !Ref AssesslyStorageBucket
       Events:
         GetAssessmentApi:
           Type: Api
@@ -124,6 +123,82 @@ Resources:
         Sourcemap: true
         EntryPoints:
           - src/lambdas/get-assessment.ts
+
+  # Consolidated Auth Function
+  AuthFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: ./
+      Handler: src/lambdas/auth.handler
+      Timeout: 30
+      MemorySize: 256
+      Policies:
+        - AWSLambdaBasicExecutionRole
+      Environment:
+        Variables:
+          DATABASE_URL: !Sub '{{resolve:ssm:/assessly/${Stage}/DATABASE_URL}}'
+          JWT_SECRET: !Sub '{{resolve:ssm:/assessly/${Stage}/JWT_SECRET}}'
+          HASH_SECRET: !Sub '{{resolve:ssm:/assessly/${Stage}/HASH_SECRET}}'
+          FRONTEND_URL: !Sub '{{resolve:ssm:/assessly/${Stage}/FRONTEND_URL}}'
+          RESEND_API_KEY: !Sub '{{resolve:ssm:/assessly/${Stage}/RESEND_API_KEY}}'
+          EMAIL_SENDER: !Sub '{{resolve:ssm:/assessly/${Stage}/EMAIL_SENDER}}'
+
+      Events:
+        SignupApi:
+          Type: Api
+          Properties:
+            RestApiId: !Ref APIGateway
+            Path: /auth/signup
+            Method: post
+            Auth:
+              Authorizer: NONE
+        SigninApi:
+          Type: Api
+          Properties:
+            RestApiId: !Ref APIGateway
+            Path: /auth/signin
+            Method: post
+            Auth:
+              Authorizer: NONE
+        VerifyApi:
+          Type: Api
+          Properties:
+            RestApiId: !Ref APIGateway
+            Path: /auth/verify
+            Method: post
+            Auth:
+              Authorizer: NONE
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        Minify: true
+        Target: es2022
+        Sourcemap: true
+        EntryPoints:
+          - src/lambdas/auth.ts
+
+  # Auth Token Verifier lambda function
+  AuthTokenVerifierLambda:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: ./
+      Handler: src/lambdas/auth-token-verifier.handler
+      Timeout: 3
+      Policies:
+        - AWSLambdaBasicExecutionRole
+      Environment:
+        Variables:
+          JWT_SECRET: !Sub '{{resolve:ssm:/assessly/${Stage}/JWT_SECRET}}'
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        Minify: true
+        Target: es2022
+        Sourcemap: true
+        External:
+          - '@aws-sdk/*'
+        EntryPoints:
+          - src/lambdas/auth-token-verifier.ts
 
   # --- LOG GROUPS
   LogGroup1:
@@ -148,6 +223,22 @@ Resources:
     UpdateReplacePolicy: Delete
     Properties:
       LogGroupName: !Sub '/aws/lambda/${GetAssessmentFunction}'
+      RetentionInDays: 3
+
+  LogGroup4:
+    Type: AWS::Logs::LogGroup
+    DeletionPolicy: Delete
+    UpdateReplacePolicy: Delete
+    Properties:
+      LogGroupName: !Sub '/aws/lambda/${AuthFunction}'
+      RetentionInDays: 3
+  
+  LogGroup5:
+    Type: AWS::Logs::LogGroup
+    DeletionPolicy: Delete
+    UpdateReplacePolicy: Delete
+    Properties:
+      LogGroupName: !Sub '/aws/lambda/${AuthTokenVerifierLambda}'
       RetentionInDays: 3
 
   # --- S3 BUCKET
@@ -193,6 +284,15 @@ Resources:
         AllowOrigin: "'*'"
         AllowHeaders: "'Content-Type,Authorization'"
         AllowMethods: "'GET,POST,OPTIONS'"
+      Auth:
+        DefaultAuthorizer: AuthTokenVerifier
+        Authorizers:
+          AuthTokenVerifier:
+            FunctionArn: !GetAtt AuthTokenVerifierLambda.Arn
+            Type: TOKEN
+            Identity:
+              Header: Authorization
+              ReauthorizeEvery: 0
 
 Outputs:
   AssesslyApi:

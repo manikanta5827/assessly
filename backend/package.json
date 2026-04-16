@@ -7,7 +7,7 @@
     "build": "sam validate --lint && sam build --parallel",
     "deploy": "sam deploy --config-env dev --no-confirm-changeset",
     "lambda": "sam local start-api --warm-containers EAGER --env-vars env.json",
-    "delete": "aws cloudformation delete-stack --stack-name assessly-backend",
+    "delete": "aws cloudformation delete-stack --stack-name Assessly-Prod",
     "lambda:sync": "sam sync --watch --stack-name Assessly-Dev",
     "fetch-env": "bash scripts/fetch-env.sh",
     "db:generate": "npx drizzle-kit generate",
@@ -22,15 +22,18 @@
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1030.0",
     "@aws-sdk/client-sqs": "^3.0.0",
-    "openai": "^4.85.4",
     "drizzle-orm": "^0.45.2",
     "esbuild": "^0.25.12",
+    "jsonwebtoken": "^9.0.3",
+    "openai": "^4.85.4",
     "postgres": "^3.4.9",
+    "resend": "^6.12.0",
     "unzipper": "^0.12.3"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
     "@types/aws-lambda": "^8.10.0",
+    "@types/jsonwebtoken": "^9.0.10",
     "@types/node": "^24.0.0",
     "@types/unzipper": "^0.10.11",
     "drizzle-kit": "^0.31.10",

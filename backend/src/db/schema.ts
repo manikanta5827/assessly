@@ -29,12 +29,22 @@ export const requirementStatusEnum = pgEnum('requirement_status', [
 ]);
 
 // --- Tables ---
+export const users = pgTable('users', {
+  id: uuid('id')
+    .primaryKey()
+    .default(sql`gen_random_uuid()`),
+  name: text('name'),
+  email: text('email').unique().notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+});
+
 
 export const assessments = pgTable('assessments', {
   id: uuid('id')
     .primaryKey()
     .default(sql`gen_random_uuid()`),
-  userId: text('user_id'),
+  userId: uuid('user_id').references(() => users.id),
   ipHash: text('ip_hash').notNull(),
   repoUrl: text('repo_url').notNull(),
   requirementsText: text('requirements_text').notNull(),
@@ -208,7 +218,16 @@ export const assessmentsRelations = relations(assessments, ({ many, one }) => ({
     references: [finalReport.assessmentId],
   }),
   interviewQuestions: many(interviewQuestions),
+  user: one(users, {
+    fields: [assessments.userId],
+    references: [users.id],
+  }),
 }));
+
+export const usersRelations = relations(users, ({ many }) => ({
+  assessments: many(assessments),
+}));
+
 
 export const projectRequirementsRelations = relations(projectRequirements, ({ one }) => ({
   assessment: one(assessments, {
