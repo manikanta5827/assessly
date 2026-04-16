@@ -15,6 +15,13 @@
       "when": 1776284149037,
       "tag": "0001_empty_fabian_cortez",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1776344020189,
+      "tag": "0002_gifted_chat",
+      "breakpoints": true
     }
   ]
 }
