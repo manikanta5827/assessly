@@ -1,10 +1,15 @@
 import { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
-import { SQSClient, SendMessageCommand } from '@aws-sdk/client-sqs';
+import { SQSClient, SendMessageBatchCommand } from '@aws-sdk/client-sqs';
+
 import { AssessmentRepository } from '../repositories/assessment.repository';
-import * as crypto from 'node:crypto';
 
 const sqsClient = new SQSClient({});
 const assessmentRepo = new AssessmentRepository();
+
+const queueUrl = process.env.QUEUE_URL;
+if (!queueUrl) {
+  throw new Error('QUEUE_URL environment variable not set');
+}
 
 export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> => {
   if (event.httpMethod === 'OPTIONS') {
@@ -15,52 +20,55 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
     console.log('Processing Trigger');
 
     const body = JSON.parse(event.body || '{}');
-    const { repoUrl, requirementsText, userId } = body;
+    const { channelId, repoUrls } = body as { channelId: string; repoUrls: string[] };
 
-    if (!repoUrl || !requirementsText) {
-      return response(400, { error: 'Missing repoUrl or requirementsText' });
+    if (!channelId || !repoUrls) {
+      return response(400, { error: 'Missing channelId or repoUrls' });
     }
 
-    const ip = event.requestContext.identity.sourceIp || 'unknown';
-
-    // 1. Check if assessment for this repo already exists
-    const existingAssessment = await assessmentRepo.getAssessmentByRepoUrl(repoUrl);
-    if (existingAssessment) {
-      console.log('Assessment already exists for repoUrl: ', repoUrl);
-      return response(409, {
-        error: 'Already exists',
-        message: 'An assessment for this repository already exists.',
-        assessmentId: existingAssessment.id,
-      });
+    if (repoUrls.length > 10) {
+      return response(400, { error: 'Too many repositories' });
     }
 
-    const ipHash = crypto.createHash('sha256').update(ip).digest('hex');
+    // remove duplicates
+    const uniqueRepoUrls = [...new Set(repoUrls)];
+    console.log(`Processing ${uniqueRepoUrls.length} unique repositories`);
 
-    // 2. Create Assessment record (PENDING)
-    const assessment = await assessmentRepo.createAssessment({
-      userId: userId || null,
-      ipHash,
-      repoUrl,
-      requirementsText,
-      status: 'PENDING',
-    });
-
-    // 3. Send message to SQS queue
-    const queueUrl = process.env.QUEUE_URL;
-    if (!queueUrl) {
-      throw new Error('QUEUE_URL environment variable not set');
+    if(uniqueRepoUrls.length === 0) {
+      return response(400, { error: 'No repositories provided' });
     }
 
+    // 2. Fetch all candidate names in parallel
+    const assessmentInputs = await Promise.all(
+      uniqueRepoUrls.map(async (repoUrl) => {
+        const candidateName = await getCandidateName(repoUrl);
+        return {
+          repoUrl,
+          status: 'PENDING',
+          channelId,
+          candidateName,
+        };
+      })
+    );
+
+    // 3. Bulk Create Assessment records
+    const createdAssessments = (await assessmentRepo.createAssessment(assessmentInputs)) as any[];
+    const assessmentIds = createdAssessments.map((a) => a.id);
+
+    // 4. Send messages to SQS queue in batch
     await sqsClient.send(
-      new SendMessageCommand({
+      new SendMessageBatchCommand({
         QueueUrl: queueUrl,
-        MessageBody: JSON.stringify({ assessmentId: assessment.id }),
+        Entries: createdAssessments.map((a, index) => ({
+          Id: `msg_${index}`,
+          MessageBody: JSON.stringify({ assessmentId: a.id }),
+        })),
       })
     );
 
     return response(202, {
-      message: 'Assessment started',
-      assessmentId: assessment.id,
+      message: 'Assessments started',
+      assessmentIds,
     });
   } catch (error: unknown) {
     console.error('Trigger Error:', error);
@@ -80,4 +88,17 @@ function response(statusCode: number, body: any): APIGatewayProxyResult {
       'Access-Control-Allow-Headers': 'Content-Type, Authorization',
     },
   };
+}
+
+async function getCandidateName(repoUrl: string): Promise<string> {
+  // extract account name from url
+  // https://github.com/manikanta5827/assessly
+  // manikanta5827
+  const accountName = repoUrl.split('/')[3];
+  const res = await fetch(`https://api.github.com/users/${accountName}`);
+  if (!res.ok) {
+    return accountName;
+  }
+  const data = (await res.json()) as { name: string };
+  return data.name;
 }
