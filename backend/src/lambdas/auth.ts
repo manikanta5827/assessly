@@ -35,13 +35,15 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
         await userRepository.createUser({ email, name });
         console.log('Created new user during signup:', email);
       } else if (path.includes('/auth/signup') && user) {
-        return response(200, { message: 'User already exists. Please verify your email via the link sent to your inbox.' });
+        return response(200, {
+          message: 'User already exists. Please verify your email via the link sent to your inbox.',
+        });
       }
 
       // 3. Generate stateless magic link
       const ts = Date.now();
       const hash = authService.generateMagicLinkHash(email, ts);
-      
+
       const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
       const magicLink = `${frontendUrl}/auth/verify?email=${encodeURIComponent(email)}&ts=${ts}&hash=${hash}`;
 
@@ -108,6 +110,8 @@ function response(statusCode: number, body: any): APIGatewayProxyResult {
     headers: {
       'Access-Control-Allow-Origin': '*',
       'Content-Type': 'application/json',
+      'Access-Control-Allow-Methods': 'POST, OPTIONS',
+      'Access-Control-Allow-Headers': 'Content-Type, Authorization',
     },
   };
 }
