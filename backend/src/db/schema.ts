@@ -28,6 +28,16 @@ export const requirementStatusEnum = pgEnum('requirement_status', [
   'PENDING',
 ]);
 
+export const candidateStatusEnum = pgEnum('candidate_status', [
+  'INVITED',
+  'VIEWED',
+  'SUBMITTED',
+  'PROCESSING',
+  'COMPLETED',
+  'EXPIRED',
+]);
+
+
 // --- Tables ---
 export const users = pgTable('users', {
   id: uuid('id')
@@ -61,6 +71,17 @@ export const assessments = pgTable('assessments', {
   outputTokens: integer('output_tokens'),
   totalTokens: integer('total_tokens'),
   estimatedCost: numeric('estimated_cost', { precision: 10, scale: 6 }),
+  
+  // Candidate Info
+  channelId: uuid('channel_id').references(() => channels.id),
+  candidateName: text('candidate_name'),
+  candidateEmail: text('candidate_email'),
+  inviteToken: text('invite_token').unique(),
+  candidateStatus: candidateStatusEnum('candidate_status').default('INVITED').notNull(),
+  invitedAt: timestamp('invited_at', { withTimezone: true }),
+  viewedAt: timestamp('viewed_at', { withTimezone: true }),
+  submittedAt: timestamp('submitted_at', { withTimezone: true }),
+
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
 }, (table) => {
@@ -69,14 +90,9 @@ export const assessments = pgTable('assessments', {
     index('user_id_idx').on(table.userId),
     index('ip_hash_idx').on(table.ipHash),
     index('status_idx').on(table.status),
+    index('channel_id_idx').on(table.channelId),
+    index('invite_token_idx').on(table.inviteToken),
   ];
-});
-
-export const ipTracking = pgTable('ip_tracking', {
-  ipHash: text('ip_hash').primaryKey(),
-  assessmentCount: integer('assessment_count').default(0).notNull(),
-  firstSeenAt: timestamp('first_seen_at', { withTimezone: true }).defaultNow().notNull(),
-  lastSeenAt: timestamp('last_seen_at', { withTimezone: true }).defaultNow().notNull(),
 });
 
 export const projectRequirements = pgTable('project_requirements', {
@@ -193,6 +209,24 @@ export const interviewQuestions = pgTable('interview_questions', {
   ];
 });
 
+export const channels = pgTable('channels', {
+  id: uuid('id')
+    .primaryKey()
+    .default(sql`gen_random_uuid()`),
+  name: text('name').notNull().unique(),
+  description: text('description'),
+  assessmentDocsUrl: text('assessment_docs_url').notNull(),
+  createdBy: uuid('created_by')
+    .notNull()
+    .references(() => users.id),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+}, (table) => {
+  return [
+    index('channels_created_by_idx').on(table.createdBy),
+  ];
+});
+
+
 // --- Relations ---
 
 export const assessmentsRelations = relations(assessments, ({ many, one }) => ({
@@ -222,9 +256,22 @@ export const assessmentsRelations = relations(assessments, ({ many, one }) => ({
     fields: [assessments.userId],
     references: [users.id],
   }),
+  channel: one(channels, {
+    fields: [assessments.channelId],
+    references: [channels.id],
+  }),
 }));
 
 export const usersRelations = relations(users, ({ many }) => ({
+  assessments: many(assessments),
+  channels: many(channels),
+}));
+
+export const channelsRelations = relations(channels, ({ one, many }) => ({
+  user: one(users, {
+    fields: [channels.createdBy],
+    references: [users.id],
+  }),
   assessments: many(assessments),
 }));
 

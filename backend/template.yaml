@@ -38,7 +38,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       CodeUri: ./
-      Handler: src/lambdas/trigger-lambda.handler
+      Handler: src/lambdas/trigger-assessment.handler
       Policies:
         - AWSLambdaBasicExecutionRole
         - SQSSendMessagePolicy:
@@ -65,14 +65,14 @@ Resources:
           - '@aws-sdk/*'
         Sourcemap: true
         EntryPoints:
-          - src/lambdas/trigger-lambda.ts
+          - src/lambdas/trigger-assessment.ts
 
   #  Actual Processing Function
   ProcessFunction:
     Type: AWS::Serverless::Function
     Properties:
       CodeUri: ./
-      Handler: src/lambdas/process-lambda.handler
+      Handler: src/lambdas/process-assessment.handler
       Timeout: 300
       MemorySize: 512
       Policies:
@@ -100,7 +100,7 @@ Resources:
           - '@aws-sdk/*'
         Sourcemap: true
         EntryPoints:
-          - src/lambdas/process-lambda.ts
+          - src/lambdas/process-assessment.ts
 
   # Get Assessment Function
   GetAssessmentFunction:
