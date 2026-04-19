@@ -43,6 +43,13 @@
       "when": 1776369268966,
       "tag": "0005_huge_vargas",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1776583883048,
+      "tag": "0006_huge_mattie_franklin",
+      "breakpoints": true
     }
   ]
 }
