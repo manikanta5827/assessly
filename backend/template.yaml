@@ -1,7 +1,7 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Transform: AWS::Serverless-2016-10-31
 Description: Assessly - AI GitHub Assessment Reviewer
- 
+
 # --- MAPPINGS
 Mappings:
   StageConfig:
@@ -9,7 +9,6 @@ Mappings:
       LogRetention: 3
     prod:
       LogRetention: 7
-
 
 # --- PARAMETERS
 Parameters:
@@ -38,7 +37,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       CodeUri: ./
-      Handler: src/lambdas/trigger-assessment.handler
+      Handler: src/lambdas/trigger-submission.handler
       Policies:
         - AWSLambdaBasicExecutionRole
         - SQSSendMessagePolicy:
@@ -65,14 +64,14 @@ Resources:
           - '@aws-sdk/*'
         Sourcemap: true
         EntryPoints:
-          - src/lambdas/trigger-assessment.ts
+          - src/lambdas/trigger-submission.ts
 
-  #  Actual Processing Function
+  # Actual Processing Function
   ProcessFunction:
     Type: AWS::Serverless::Function
     Properties:
       CodeUri: ./
-      Handler: src/lambdas/process-assessment.handler
+      Handler: src/lambdas/process-submission.handler
       Timeout: 300
       MemorySize: 512
       Policies:
@@ -100,14 +99,14 @@ Resources:
           - '@aws-sdk/*'
         Sourcemap: true
         EntryPoints:
-          - src/lambdas/process-assessment.ts
+          - src/lambdas/process-submission.ts
 
-  # Get Assessment Function
-  GetAssessmentFunction:
+  # Get Submission Function
+  GetSubmissionFunction:
     Type: AWS::Serverless::Function
     Properties:
       CodeUri: ./
-      Handler: src/lambdas/get-assessment.handler
+      Handler: src/lambdas/get-submission.handler
       Timeout: 30
       MemorySize: 256
       Policies:
@@ -116,11 +115,11 @@ Resources:
         Variables:
           DATABASE_URL: !Sub '{{resolve:ssm:/assessly/${Stage}/DATABASE_URL}}'
       Events:
-        GetAssessmentApi:
+        GetSubmissionApi:
           Type: Api
           Properties:
             RestApiId: !Ref APIGateway
-            Path: /assessment
+            Path: /submission
             Method: get
     Metadata:
       BuildMethod: esbuild
@@ -131,13 +130,13 @@ Resources:
           - '@aws-sdk/*'
         Sourcemap: true
         EntryPoints:
-          - src/lambdas/get-assessment.ts
-  
-  # SendAssessmentFunction:
+          - src/lambdas/get-submission.ts
+
+  # SendSubmissionsFunction:
   #   Type: AWS::Serverless::Function
   #   Properties:
   #     CodeUri: ./
-  #     Handler: src/lambdas/send-assessment.handler
+  #     Handler: src/lambdas/send-submissions.handler
   #     Timeout: 30
   #     MemorySize: 256
   #     Policies:
@@ -150,11 +149,11 @@ Resources:
   #         FRONTEND_URL: !Sub '{{resolve:ssm:/assessly/${Stage}/FRONTEND_URL}}'
   #         STORAGE_BUCKET_NAME: !Ref AssesslyStorageBucket
   #     Events:
-  #       SendAssessmentApi:
+  #       SendSubmissionsApi:
   #         Type: Api
   #         Properties:
   #           RestApiId: !Ref APIGateway
-  #           Path: /send-assessment
+  #           Path: /send-submissions
   #           Method: post
   #   Metadata:
   #     BuildMethod: esbuild
@@ -165,7 +164,7 @@ Resources:
   #         - '@aws-sdk/*'
   #       Sourcemap: true
   #       EntryPoints:
-  #         - src/lambdas/send-assessment.ts
+  #         - src/lambdas/send-submissions.ts
 
   # # Consolidated Auth Function
   # AuthFunction:
@@ -265,7 +264,7 @@ Resources:
     DeletionPolicy: Delete
     UpdateReplacePolicy: Delete
     Properties:
-      LogGroupName: !Sub '/aws/lambda/${GetAssessmentFunction}'
+      LogGroupName: !Sub '/aws/lambda/${GetSubmissionFunction}'
       RetentionInDays: !FindInMap [StageConfig, !Ref Stage, LogRetention]
 
   # LogGroup4:
@@ -275,7 +274,7 @@ Resources:
   #   Properties:
   #     LogGroupName: !Sub '/aws/lambda/${AuthFunction}'
   #     RetentionInDays: !FindInMap [StageConfig, !Ref Stage, LogRetention]
-  
+
   # LogGroup5:
   #   Type: AWS::Logs::LogGroup
   #   DeletionPolicy: Delete

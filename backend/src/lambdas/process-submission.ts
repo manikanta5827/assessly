@@ -1,50 +1,55 @@
 import { SQSEvent } from 'aws-lambda';
-import { AssessmentRepository } from '../repositories/assessment.repository';
+import { SubmissionRepository } from '../repositories/submission.repository';
 import { GitHubService } from '../services/github.service';
 import { LLMService } from '../services/llm.service';
 import { S3Service } from '../services/s3.service';
 
-const assessmentRepo = new AssessmentRepository();
+const submissionRepo = new SubmissionRepository();
 const s3Service = new S3Service();
 
 export const handler = async (event: SQSEvent) => {
   console.log('Processing event: ', event);
   for (const record of event.Records) {
-    const { assessmentId } = JSON.parse(record.body);
+    const { submissionId } = JSON.parse(record.body); // Updated from assessmentId in SQS if possible, or mapped below
 
     try {
       // 1. Fetch record
-      const assessment = await assessmentRepo.getAssessmentForProcessing(assessmentId);
+      const submission = await submissionRepo.getSubmissionForProcessing(submissionId);
 
-      if (!assessment) {
-        console.error(`Assessment with ID ${assessmentId} not found`);
+      if (!submission) {
+        console.error(`Submission with ID ${submissionId} not found`);
         continue;
       }
 
       // 2. Update status to PROCESSING
-      console.log('Updating status to PROCESSING for assessmentId: ', assessmentId);
-      await assessmentRepo.updateAssessmentStatus(assessmentId, 'PROCESSING');
+      console.log('Updating status to PROCESSING for submissionId: ', submissionId);
+      await submissionRepo.updateSubmissionStatus(submissionId, 'PROCESSING');
 
       // 3. Initialize Services
       const github = new GitHubService(process.env.GITHUB_TOKEN);
       const llm = new LLMService('openai', process.env.OPENAI_API_KEY!, 'gpt-4o-mini');
 
       // 4. Process Repo
-      const { owner, repo } = github.parseUrl(assessment.repoUrl);
+      const { owner, repo } = github.parseUrl(submission.githubRepoUrl);
       console.log(`Building context for ${owner}/${repo}...`);
+
       const [{ context, fileNames }, commitMessages] = await Promise.all([
         github.buildContext(owner, repo),
         github.getCommits(owner, repo),
       ]);
+      
       console.log(`Context built. Length: ${context.length} characters.`);
       console.log(`Fetched ${commitMessages.length} commit messages.`);
 
       // 5. AI Analysis - Multi-stage Pipeline
-      console.log(`Starting Multi-stage AI Analysis for assessmentId: ${assessmentId}...`);
+      console.log(`Starting Multi-stage AI Analysis for submissionId: ${submissionId}...`);
 
-      // get requirements text from s3
-      const requirementDocsUrl = await assessmentRepo.getAssessmentDocsUrl(assessmentId);
-      const requirementsText = await s3Service.getObject(requirementDocsUrl!);
+      // get requirements text from db
+      const requirementDocsText = await submissionRepo.getSubmissionDocsText(submissionId);
+
+      if (!requirementDocsText) {
+        throw new Error(`No requirement text found for submission ${submissionId}`);
+      }
 
       // STAGE 1: Parallel Analysis Calls
       const [
@@ -55,7 +60,7 @@ export const handler = async (event: SQSEvent) => {
         runnabilityResult,
         aiPatternsResult,
       ] = await Promise.all([
-        llm.extractRequirements(requirementsText!),
+        llm.extractRequirements(requirementDocsText),
         llm.generateRepoMap(fileNames, context),
         llm.analyzeCommits(commitMessages),
         llm.analyzeCodeQuality(context),
@@ -114,17 +119,17 @@ export const handler = async (event: SQSEvent) => {
         { inputTokens: 0, outputTokens: 0, totalTokens: 0, estimatedCost: 0 }
       );
 
-      console.log('Analysis Done for assessmentId: ', assessmentId);
+      console.log('Analysis Done for submissionId: ', submissionId);
 
       // 6. Store Large Contexts in S3
-      const snapshotKey = `assessmentSnapshots/${assessmentId}/snapshot.txt`;
-      const repoMapKey = `assessmentRepoMaps/${assessmentId}/repo-map.json`;
+      const snapshotKey = `assessmentSnapshots/${submissionId}/snapshot.txt`;
+      const repoMapKey = `assessmentRepoMaps/${submissionId}/repo-map.json`;
       await Promise.all([
         s3Service.putObject(snapshotKey, context, 'text/plain'),
         s3Service.putObject(repoMapKey, repoMapResult.repoMap || null, 'application/json'),
       ]);
 
-      await assessmentRepo.finalizeAssessment(assessmentId, {
+      await submissionRepo.finalizeSubmission(submissionId, {
         status: 'COMPLETED',
         score: Math.round(finalScore),
 
@@ -140,33 +145,24 @@ export const handler = async (event: SQSEvent) => {
         runnabilityScore,
         aiAnalysisScore: aiPatternsResult.analysis.score,
 
-        // Relational Nested Creates (Handled via transaction in finalizeAssessment)
-        requirements: {
-          create: reqResult.requirements.map((req: any) => {
+        fullReport: {
+          requirements: reqResult.requirements.map((req: any) => {
             const evalMatch = requirementsEval.find((e: any) => e.id === req.id);
             return {
               text: req.text || '',
               category: req.category || null,
               status: evalMatch ? evalMatch.status : 'PENDING',
-              evidenceFile: evalMatch?.evidence?.file || null,
-              evidenceSnippet: evalMatch?.evidence?.snippet || null,
+              evidence: evalMatch?.evidence || null,
               reasoning: evalMatch ? evalMatch.reasoning : null,
             };
           }),
-        },
-        codeQuality: {
-          create: {
+          codeQuality: {
             score: codeQualityResult.analysis.score || 0,
-            readability: codeQualityResult.analysis.breakdown?.readability || 0,
-            structure: codeQualityResult.analysis.breakdown?.structure || 0,
-            naming: codeQualityResult.analysis.breakdown?.naming || 0,
-            bestPractices: codeQualityResult.analysis.breakdown?.bestPractices || 0,
+            breakdown: codeQualityResult.analysis.breakdown || {},
             summary: codeQualityResult.analysis.summary || '',
             issues: codeQualityResult.analysis.issues || [],
           },
-        },
-        runnability: {
-          create: {
+          runnability: {
             score: runnabilityResult.analysis.score || 0,
             hasDocker: runnabilityResult.analysis.hasDocker || false,
             hasEnvExample: runnabilityResult.analysis.hasEnvExample || false,
@@ -174,52 +170,42 @@ export const handler = async (event: SQSEvent) => {
             ciDetected: runnabilityResult.analysis.ciDetected || false,
             summary: runnabilityResult.analysis.summary || '',
             issues: runnabilityResult.analysis.issues || [],
-            hasTests: runnabilityResult.analysis.testDetection?.hasTests || false,
-            testLanguage: runnabilityResult.analysis.testDetection?.language || null,
-            testFramework: runnabilityResult.analysis.testDetection?.framework || null,
-            testCommand: runnabilityResult.analysis.testDetection?.command || null,
-            testPath: runnabilityResult.analysis.testDetection?.path || null,
+            testDetection: runnabilityResult.analysis.testDetection || {},
           },
-        },
-        aiAnalysis: {
-          create: {
+          aiAnalysis: {
             score: aiPatternsResult.analysis.score || 0,
             confidence: aiPatternsResult.analysis.confidence || 0,
             summary: aiPatternsResult.analysis.summary || '',
           },
-        },
-        commitAnalysis: {
-          create: {
+          commitAnalysis: {
             qualityScore: commitResult.analysis.qualityScore || 0,
             pattern: commitResult.analysis.pattern || 'UNKNOWN',
             summary: commitResult.analysis.summary || '',
           },
-        },
-        finalReport: {
-          create: {
+          finalReport: {
             score: Math.round(finalScore) || 0,
             summary: finalReportResult.report.summary || '',
             strengths: finalReportResult.report.strengths || [],
             weaknesses: finalReportResult.report.weaknesses || [],
             hiringRecommendation: finalReportResult.report.hiringRecommendation || 'UNKNOWN',
           },
-        },
-        interviewQuestions: {
-          create: (finalReportResult.report.interviewQuestions || []).map((iq: any) => ({
-            question: iq.question || '',
-            focusArea: iq.focusArea || '',
-          })),
+          interviewQuestions: (finalReportResult.report.interviewQuestions || []).map(
+            (iq: any) => ({
+              question: iq.question || '',
+              focusArea: iq.focusArea || '',
+            })
+          ),
         },
       });
 
-      await assessmentRepo.updateAssessmentStatus(assessmentId, 'COMPLETED');
-      console.log(`Assessment ${assessmentId} COMPLETED`);
+      await submissionRepo.updateSubmissionStatus(submissionId, 'COMPLETED');
+      console.log(`Submission ${submissionId} COMPLETED`);
     } catch (error: unknown) {
-      console.error(`Processing Error for Assessment ${assessmentId}:`, error);
+      console.error(`Processing Error for Submission ${submissionId}:`, error);
 
       // Update status to FAILED
-      await assessmentRepo
-        .updateAssessmentStatus(assessmentId, 'FAILED')
+      await submissionRepo
+        .updateSubmissionStatus(submissionId, 'FAILED')
         .catch((e: unknown) => console.error('Could not set status to FAILED', e));
     }
   }
